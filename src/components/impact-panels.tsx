@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BadgeIndianRupee, Boxes, CalendarClock, HeartHandshake, PackageMinus, Repeat2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, BadgeIndianRupee, Boxes, CalendarClock, HandCoins, HeartHandshake, PackageMinus, Repeat2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { BenchmarkReport, LiftReport, Scorecard, TodayAction } from "@/lib/impact";
 import type { ExperimentReport } from "@/lib/experiments";
 import type { DropReport } from "@/lib/impact-math";
@@ -46,6 +46,7 @@ const KIND_ICON = {
   festival: CalendarClock,
   cash: Wallet,
   slow: Boxes,
+  collect: HandCoins,
 } as const;
 
 /* ------------------------------------------------------------------ */

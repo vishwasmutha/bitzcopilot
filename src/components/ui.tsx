@@ -61,7 +61,7 @@ export function Card({
   return (
     <div className={cn("rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_30px_-18px_rgba(0,0,0,0.18)]", !pad && "overflow-hidden", className)}>
       {(title || action) && (
-        <div className="flex items-start justify-between gap-3 px-7 pb-1 pt-6">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-3 px-7 pb-1 pt-6">
           <div>
             {title && <h3 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h3>}
             {sub && <p className="mt-1 text-sm text-slate-500">{sub}</p>}

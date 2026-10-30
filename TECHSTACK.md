@@ -93,3 +93,14 @@ Demo: `98450 12345` / PIN `demo1234`, or the demo button. The Kirana demo plants
 - The app never messages customers. The owner sends from their own WhatsApp.
 - The built-in assistant routes questions to tools by rules. A language model, when a key is set, only words the answer.
 - The demo data is simulated, and its planted scenarios are labelled as demo.
+
+## Agents
+
+Agents here are rule-based and deterministic. The model only words things; it never decides amounts or sends messages.
+
+| Agent | What it does | Where |
+|---|---|---|
+| Daily operator | Once a day: checks sales, stock and cash, logs autopilot items, runs collections, writes the morning brief and delivers it (in-app, and WhatsApp when configured). | `src/lib/operator.ts`, `/api/operator`, `/api/cron/daily` (09:00 IST via `vercel.json`), Autopilot page |
+| Collections | Finds overdue credit, drafts polite reminders in en/hi/kn that get firmer by age, one per stage and spaced apart. The owner sends them (WhatsApp link or copy) and marks the result. | `src/lib/collections-math.ts` (rules, unit-tested), `src/lib/collections.ts`, `/api/collections`, Cash page |
+
+Env: `CRON_SECRET` protects the cron endpoint. `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` are optional, for sending the brief to the owner on WhatsApp.

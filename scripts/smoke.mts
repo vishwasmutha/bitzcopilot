@@ -219,6 +219,112 @@ await step("autopilot: dial, budget, log, approve, receive", async () => {
   assert.equal((await api("/api/autopilot", { method: "PUT", body: { level: 2, budget: 0 } })).status, 200);
 });
 
+await step("daily operator: run, idempotent, delivery, notification, cron guard", async () => {
+  const unauth = await fetch(BASE + "/api/operator");
+  assert.equal(unauth.status, 401, "needs a session");
+
+  const first = await api("/api/operator", { body: { force: true, lang: "hi" } });
+  assert.equal(first.status, 200, JSON.stringify(first.json));
+  const run = first.json.run;
+  assert.equal(run.alreadyRan, false);
+  assert.equal(run.lang, "hi");
+  assert.ok(typeof run.brief === "string" && run.brief.length > 20, "a brief was written");
+  assert.ok(Array.isArray(run.actions) && run.actions.length <= 5, "at most five priorities");
+  assert.ok(run.collections && run.collections.overdueCount >= 3, "the operator ran collections: " + JSON.stringify(run.collections));
+  assert.ok(run.collections.drafted >= 1, "and drafted reminders");
+  assert.ok(["sent", "not_configured", "no_phone", "failed"].includes(run.delivery.status));
+  assert.ok(run.delivery.note.length > 0);
+
+  const again = await api("/api/operator", { body: { force: false } });
+  assert.equal(again.json.run.alreadyRan, true, "second call the same day reuses the run");
+  assert.equal(again.json.run.brief, run.brief);
+
+  const last = await api("/api/operator");
+  assert.equal(last.json.run.date, run.date);
+
+  const log = await api("/api/autopilot");
+  assert.ok(!log.json.log.some((l: any) => l.kind === "operator_run"), "run records are not shown as owner actions");
+
+  const notes = await api("/api/notifications");
+  assert.ok(JSON.stringify(notes.json).includes("brief"), "the bell shows the brief");
+
+  const closed = await fetch(BASE + "/api/cron/daily");
+  assert.ok([401, 503].includes(closed.status), "cron endpoint is closed without the secret");
+  const wrong = await fetch(BASE + "/api/cron/daily", { headers: { Authorization: "Bearer not-the-secret" } });
+  assert.ok([401, 503].includes(wrong.status), "cron endpoint rejects a wrong secret");
+  if (process.env.CRON_SECRET) {
+    const ok = await fetch(BASE + "/api/cron/daily", { headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` } });
+    const j: any = await ok.json();
+    assert.equal(ok.status, 200, JSON.stringify(j));
+    assert.equal(j.failed, 0, JSON.stringify(j.errors));
+  }
+});
+
+await step("collections agent: overdue credit, drafts, no nagging, owner decisions", async () => {
+  const unauth = await fetch(BASE + "/api/collections");
+  assert.equal(unauth.status, 401, "needs a session");
+
+  // The operator step above already ran collections for today.
+  const v0 = (await api("/api/collections")).json.view;
+  assert.ok(v0.overdueCount >= 3, "demo has overdue credit at different ages");
+  const stages = new Set(v0.overdue.map((o: any) => o.stage));
+  assert.ok(stages.has(1) && stages.has(2) && stages.has(3), "friendly, clear and firm stages all present: " + [...stages].join(","));
+  const ready = v0.reminders.filter((r: any) => r.status === "drafted");
+  assert.ok(ready.length >= 3 && ready.length <= 5, `drafts waiting: ${ready.length}`);
+  for (const r of ready) {
+    assert.ok(r.messages.en.includes(r.party) && r.messages.hi.includes(r.party) && r.messages.kn.includes(r.party), "each language names the customer");
+    assert.ok(/₹/.test(r.messages.en) && /₹/.test(r.messages.hi) && /₹/.test(r.messages.kn), "and the amount");
+    assert.ok(!/police|legal|court|penalty|shame/i.test(r.messages.en), "never threatening");
+  }
+  const oldest = ready.find((r: any) => r.stage === 3), newest = ready.find((r: any) => r.stage === 1);
+  assert.ok(oldest && newest && oldest.messages.en !== newest.messages.en, "tone differs with age");
+
+  // Idempotent: asking again drafts nothing new.
+  const again = await api("/api/collections", { body: {} });
+  assert.equal(again.status, 200);
+  assert.equal(again.json.drafted, 0, "no duplicate reminders");
+
+  // They are not mixed into the autopilot action log.
+  const log = await api("/api/autopilot");
+  assert.ok(!log.json.log.some((l: any) => l.kind === "collection_reminder"), "kept out of the autopilot log");
+
+  // Collections shows up in today's priorities (and so in the morning brief).
+  const imp = await api("/api/impact?limit=5");
+  const collect = imp.json.actions.find((a: any) => a.kind === "collect");
+  assert.ok(collect, "an overdue-credit priority exists: " + imp.json.actions.map((a: any) => a.kind).join(","));
+  assert.ok(Math.abs(collect.atStake - v0.overdueTotal) < 1, "and its amount matches the collections view");
+  assert.equal(collect.cta.href, "/cash#collections");
+
+  // Owner decisions.
+  const a = ready[0], b = ready[1];
+  assert.equal((await api(`/api/collections/${a.id}`, { method: "PATCH", body: { decision: "nope" } })).status, 400);
+  assert.equal((await api("/api/collections/00000000-0000-0000-0000-000000000000", { method: "PATCH", body: { decision: "sent" } })).status, 404);
+  const sent = await api(`/api/collections/${a.id}`, { method: "PATCH", body: { decision: "sent" } });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.json.view.reminders.find((r: any) => r.id === a.id).status, "approved");
+  assert.equal((await api(`/api/collections/${a.id}`, { method: "PATCH", body: { decision: "sent" } })).status, 409, "cannot mark sent twice");
+
+  // "They paid" closes the credit and updates cash.
+  const before = v0.overdueTotal;
+  const paid = await api(`/api/collections/${b.id}`, { method: "PATCH", body: { decision: "collected" } });
+  assert.equal(paid.status, 200, JSON.stringify(paid.json));
+  const v1 = paid.json.view;
+  assert.equal(v1.reminders.find((r: any) => r.id === b.id).status, "received");
+  assert.ok(Math.abs(before - v1.overdueTotal - b.amount) < 1, "overdue total dropped by the amount collected");
+  assert.ok(v1.recovered.amount >= b.amount, "recovered amount recorded");
+  assert.ok(!v1.overdue.some((o: any) => o.itemId === b.itemId), "no longer overdue");
+  assert.equal((await api(`/api/collections/${b.id}`, { method: "PATCH", body: { decision: "collected" } })).status, 409, "cannot collect twice");
+  const cash = await api("/api/cash");
+  const stillOpen = cash.json.items.find((i: any) => i.id === b.itemId);
+  assert.ok(!stillOpen || stillOpen.status === "settled", "the cash item is settled");
+
+  // Skipping a draft is respected: it is not drafted again for that stage.
+  const c = ready[2];
+  assert.equal((await api(`/api/collections/${c.id}`, { method: "PATCH", body: { decision: "dismiss" } })).status, 200);
+  const after = await api("/api/collections", { body: {} });
+  assert.equal(after.json.drafted, 0, "a skipped reminder is not re-drafted");
+});
+
 await step("assistant: tool interface returns figures", async () => {
   for (const [q, tool] of [
     ["Will I run short of cash in the next month?", "get_cash_outlook"],
@@ -253,7 +359,7 @@ await step("alerts: capped at 5 new per week, ranked by rupees", async () => {
   const r = await api("/api/notifications");
   assert.equal(r.status, 200);
   const week = Date.now() - 7 * 86400000;
-  const recent = r.json.notifications.filter((n: any) => new Date(n.createdAt).getTime() >= week);
+  const recent = r.json.notifications.filter((n: any) => n.type !== "daily_brief" && new Date(n.createdAt).getTime() >= week);
   assert.ok(recent.length <= 5, `got ${recent.length} alerts this week`);
   console.log(`       ${recent.length} alerts: ${recent.map((n: any) => `${n.type}(${n.impactRs ?? "-"})`).join(", ")}`);
 });

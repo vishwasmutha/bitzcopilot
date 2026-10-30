@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/db";
 import { actionLog, businesses, inventoryTransactions, products } from "@/db/schema";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, notInArray, sql } from "drizzle-orm";
 import { getCashOutlook } from "./cash";
 import { resolveAudience, consentSummary } from "./audience";
 import { buildPurchasePlan } from "./reorder";
@@ -54,7 +54,7 @@ export type LogRow = {
 };
 
 export async function listActionLog(businessId: string, limit = 30): Promise<LogRow[]> {
-  const rows = await db.select().from(actionLog).where(eq(actionLog.businessId, businessId)).orderBy(desc(actionLog.createdAt)).limit(limit);
+  const rows = await db.select().from(actionLog).where(and(eq(actionLog.businessId, businessId), notInArray(actionLog.kind, ["operator_run", "collection_reminder"]))).orderBy(desc(actionLog.createdAt)).limit(limit);
   return rows.map((r) => ({
     id: r.id,
     kind: r.kind,

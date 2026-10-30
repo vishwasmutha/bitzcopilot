@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Plus, Trash2, Wallet } from "lucide-react"
 import { Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, useToast } from "@/components/ui";
 import { MathReceipt, type ReceiptData } from "@/components/receipt";
 import { CashChart } from "@/components/cash-chart";
+import { CollectionsPanel } from "@/components/collections-panel";
 import { authFetch } from "@/lib/client-auth";
 import { fmtCurrency, shortDate } from "@/lib/utils";
 
@@ -118,6 +119,8 @@ export default function CashPage() {
           </Button>
         </div>
       </Card>
+
+      <CollectionsPanel onChange={load} />
 
       {p.status === "insufficient" ? (
         <Card title="Projection">

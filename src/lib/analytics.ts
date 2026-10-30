@@ -730,10 +730,11 @@ export async function computeAlerts(businessId: string): Promise<NotifDraft[]> {
 export async function syncNotifications(businessId: string): Promise<number> {
   const drafts = await computeAlerts(businessId);
   if (!drafts.length) return 0;
-  const existing = await db.select({ key: notifications.dedupeKey, at: notifications.createdAt }).from(notifications).where(eq(notifications.businessId, businessId));
+  const existing = await db.select({ key: notifications.dedupeKey, at: notifications.createdAt, type: notifications.type }).from(notifications).where(eq(notifications.businessId, businessId));
   const have = new Set(existing.map((e) => e.key));
   const weekAgo = Date.now() - 7 * 86400000;
-  const thisWeek = existing.filter((e) => e.at.getTime() >= weekAgo).length;
+  // The daily brief is a delivery receipt, not an alert, so it does not use up the weekly alert budget.
+  const thisWeek = existing.filter((e) => e.type !== "daily_brief" && e.at.getTime() >= weekAgo).length;
   const fresh = drafts.filter((d) => !have.has(d.dedupeKey));
   const { keep } = rankAndCap(fresh, thisWeek, WEEKLY_ALERT_CAP);
   for (const d of keep) await db.insert(notifications).values({ businessId, ...d });

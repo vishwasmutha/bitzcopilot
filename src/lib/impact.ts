@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/db";
-import { actionLog, aiMessages, marketingCampaigns, waMessages } from "@/db/schema";
-import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
+import { actionLog, aiMessages, cashItems, marketingCampaigns, waMessages } from "@/db/schema";
+import { and, desc, eq, gte, isNotNull, ne } from "drizzle-orm";
 import { getCustomerAnalytics, getProductPerformance, loadProducts, loadSales } from "./analytics";
 import { describeCrunch, getCashOutlook } from "./cash";
 import { computeLift, explainDrop, type DropReport, type LiftResult } from "./impact-math";
@@ -9,6 +9,7 @@ import { getExperiments, type ExperimentReport } from "./experiments";
 import { getLatestForecast } from "./forecast";
 import { activeFestivals } from "./reorder";
 import { stockRunway } from "./wa";
+import { daysBetween } from "./collections-math";
 import { addDays, fmtCurrency, isUntracked, todayISO, type Lang } from "./utils";
 
 /* ------------------------------------------------------------------ */
@@ -85,7 +86,7 @@ export async function getDropReport(businessId: string): Promise<DropReport> {
 
 export type TodayAction = {
   id: string;
-  kind: "drop" | "stock" | "winback" | "festival" | "repeat" | "cash" | "slow";
+  kind: "drop" | "stock" | "winback" | "festival" | "repeat" | "cash" | "slow" | "collect";
   title: string;
   detail: string;
   atStake: number | null;
@@ -125,6 +126,11 @@ const L = {
     hi: (date: string) => `${date} के आसपास नकदी कम पड़ सकती है`,
     kn: (date: string) => `${date} ಸುಮಾರಿಗೆ ನಗದು ಕಡಿಮೆಯಾಗಬಹುದು`,
   },
+  collect: {
+    en: (amt: string, n: number) => `${amt} owed to you is overdue (${n} customer${n === 1 ? "" : "s"})`,
+    hi: (amt: string, n: number) => `${amt} उधार बाकी है (${n} ग्राहक)`,
+    kn: (amt: string, n: number) => `${amt} ಬಾಕಿ ಇದೆ (${n} ಗ್ರಾಹಕರು)`,
+  },
   slow: {
     en: (amt: string) => `${amt} is stuck in slow-moving stock`,
     hi: (amt: string) => `${amt} धीमे बिकने वाले माल में फँसा है`,
@@ -132,19 +138,41 @@ const L = {
   },
 };
 
+/** Credit that customers owe the shop and have not paid on time. */
+async function overdueCredit(businessId: string): Promise<{ count: number; total: number; oldest: number }> {
+  const today = todayISO();
+  const rows = await db
+    .select({ amount: cashItems.amount, dueDate: cashItems.dueDate })
+    .from(cashItems)
+    .where(and(eq(cashItems.businessId, businessId), eq(cashItems.kind, "receivable"), eq(cashItems.status, "open")));
+  let count = 0;
+  let total = 0;
+  let oldest = 0;
+  for (const r of rows) {
+    const d = daysBetween(r.dueDate, today);
+    if (d >= 1) {
+      count++;
+      total += r.amount;
+      oldest = Math.max(oldest, d);
+    }
+  }
+  return { count, total, oldest };
+}
+
 export async function getTodayActions(
   businessId: string,
   opts: { lang?: Lang; limit?: number; drop?: DropReport; lifts?: LiftReport[] } = {}
 ): Promise<TodayAction[]> {
   const lang: Lang = opts.lang ?? "en";
   const limit = Math.min(5, Math.max(1, opts.limit ?? 3));
-  const [drop, lifts, runway, products, cust, cash] = await Promise.all([
+  const [drop, lifts, runway, products, cust, cash, owed] = await Promise.all([
     opts.drop ?? getDropReport(businessId),
     opts.lifts ?? getLiftReports(businessId),
     stockRunway(businessId),
     loadProducts(businessId),
     getCustomerAnalytics(businessId),
     getCashOutlook(businessId),
+    overdueCredit(businessId),
   ]);
   const out: TodayAction[] = [];
   const enc = encodeURIComponent;
@@ -175,6 +203,19 @@ export async function getTodayActions(
       basis: "measured",
       why: "Forecast sales, credit you are owed, supplier dues and rent were rolled forward day by day from today's cash. Open the cash outlook for the week-by-week table and every assumption.",
       cta: { label: "See the cash outlook", href: "/cash" },
+    });
+  }
+
+  if (owed.count > 0 && owed.total >= 500) {
+    out.push({
+      id: "collect",
+      kind: "collect",
+      title: L.collect[lang](fmtCurrency(owed.total, true), owed.count),
+      detail: `The oldest is ${owed.oldest} day${owed.oldest === 1 ? "" : "s"} late. Polite reminders are drafted for you to send. Nothing is sent automatically.`,
+      atStake: owed.total,
+      basis: "measured",
+      why: `Credit you gave customers that is past its due date, added up from the amounts you recorded: ${fmtCurrency(owed.total)} across ${owed.count} customer${owed.count === 1 ? "" : "s"}. Collecting it also improves the cash outlook.`,
+      cta: { label: "Send reminders", href: "/cash#collections" },
     });
   }
 
@@ -360,8 +401,8 @@ export async function getScorecard(businessId: string, experiments?: ExperimentR
   const [waIn, aiQs, decided, logged, products, exps, latest] = await Promise.all([
     db.select({ at: waMessages.createdAt }).from(waMessages).where(and(eq(waMessages.businessId, businessId), eq(waMessages.direction, "in"), gte(waMessages.createdAt, since))),
     db.select({ at: aiMessages.createdAt }).from(aiMessages).where(and(eq(aiMessages.businessId, businessId), eq(aiMessages.role, "user"), gte(aiMessages.createdAt, since))),
-    db.select({ at: actionLog.decidedAt }).from(actionLog).where(and(eq(actionLog.businessId, businessId), isNotNull(actionLog.decidedAt), gte(actionLog.decidedAt, since))),
-    db.select({ status: actionLog.status }).from(actionLog).where(and(eq(actionLog.businessId, businessId), gte(actionLog.createdAt, since30))),
+    db.select({ at: actionLog.decidedAt }).from(actionLog).where(and(eq(actionLog.businessId, businessId), ne(actionLog.kind, "operator_run"), isNotNull(actionLog.decidedAt), gte(actionLog.decidedAt, since))),
+    db.select({ status: actionLog.status }).from(actionLog).where(and(eq(actionLog.businessId, businessId), ne(actionLog.kind, "operator_run"), gte(actionLog.createdAt, since30))),
     loadProducts(businessId),
     experiments ? Promise.resolve(experiments) : getExperiments(businessId),
     getLatestForecast(businessId, 7),

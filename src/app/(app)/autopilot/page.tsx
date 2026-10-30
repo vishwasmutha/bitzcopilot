@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, ClipboardCheck, Copy, PackageCheck, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { Badge, Button, Card, Field, Input, PageHeader, Spinner, useToast } from "@/components/ui";
+import { DailyOperator } from "@/components/daily-operator";
 import { authFetch } from "@/lib/client-auth";
 import { fmtCurrency } from "@/lib/utils";
 
@@ -137,6 +138,8 @@ export default function AutopilotPage() {
           </Button>
         }
       />
+
+      <DailyOperator onRan={load} />
 
       <Card title="How much should it do?" sub="Change this any time. It applies from the next check.">
         <div role="radiogroup" aria-label="Autopilot level" className="grid gap-3 md:grid-cols-3">

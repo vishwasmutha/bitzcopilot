@@ -1,6 +1,9 @@
 import "server-only";
 import { db } from "@/db";
 import {
+  notifications,
+  waMessages,
+  actionLog,
   businesses,
   cashItems,
   customers as customersTable,
@@ -195,6 +198,11 @@ export async function loadDemoData(businessId: string, category: string): Promis
   await db.delete(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true)));
   await db.delete(cashItems).where(and(eq(cashItems.businessId, businessId), eq(cashItems.demo, true)));
   await db.delete(marketingCampaigns).where(and(eq(marketingCampaigns.businessId, businessId), like(marketingCampaigns.inputsJson, '%"demo":true%')));
+  // The action log describes the data that was just removed, so it goes too (including the daily operator's run record).
+  await db.delete(actionLog).where(eq(actionLog.businessId, businessId));
+  // Today's stored brief and its bell notification were built from the old data.
+  await db.delete(waMessages).where(and(eq(waMessages.businessId, businessId), eq(waMessages.kind, "brief")));
+  await db.delete(notifications).where(and(eq(notifications.businessId, businessId), eq(notifications.type, "daily_brief")));
 
   // ---- products ----
   const prodRows = pack.map((p) => ({
@@ -435,7 +443,11 @@ export async function loadDemoData(businessId: string, category: string): Promis
     { businessId, kind: "payable", party: "Wholesaler (staples)", amount: r100(W * 0.9), issuedOn: addDays(today, -6), dueDate: addDays(today, 12), recurrence: "none", note: "Rice, atta and oil", demo: true },
     { businessId, kind: "payable", party: "Distributor (packaged)", amount: r100(W * 1.1), issuedOn: addDays(today, -3), dueDate: addDays(today, 26), recurrence: "none", note: "Monthly order", demo: true },
     { businessId, kind: "recurring", party: "Shop rent", amount: r100(W * 0.2), issuedOn: addDays(today, -25), dueDate: addDays(today, 5), recurrence: "monthly", demo: true },
-    ...owing.map((c, i) => ({ businessId, kind: "receivable", party: c.name, amount: r100(W * (0.05 + i * 0.015)), issuedOn: addDays(today, -(10 + i * 3)), dueDate: addDays(today, 3 + i * 5), recurrence: "none", note: "Credit on groceries", demo: true })),
+    // Credit at different ages so the collections agent has something real to chase: 4, 12 and 26 days late, and one not yet due.
+    ...owing.map((c, i) => {
+      const late = [4, 12, 26, -8][i] ?? -3;
+      return { businessId, kind: "receivable", party: c.name, amount: r100(W * (0.05 + i * 0.015)), issuedOn: addDays(today, -(late + 20)), dueDate: addDays(today, -late), recurrence: "none", note: "Credit on groceries", demo: true };
+    }),
   ]);
   if (category === "Kirana") {
     const since = addDays(today, -13);
@@ -483,6 +495,11 @@ export async function clearDemoData(businessId: string): Promise<void> {
   await db.delete(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true)));
   await db.delete(cashItems).where(and(eq(cashItems.businessId, businessId), eq(cashItems.demo, true)));
   await db.delete(marketingCampaigns).where(and(eq(marketingCampaigns.businessId, businessId), like(marketingCampaigns.inputsJson, '%"demo":true%')));
+  // The action log describes the data that was just removed, so it goes too (including the daily operator's run record).
+  await db.delete(actionLog).where(eq(actionLog.businessId, businessId));
+  // Today's stored brief and its bell notification were built from the old data.
+  await db.delete(waMessages).where(and(eq(waMessages.businessId, businessId), eq(waMessages.kind, "brief")));
+  await db.delete(notifications).where(and(eq(notifications.businessId, businessId), eq(notifications.type, "daily_brief")));
 }
 
 export async function hasDemoData(businessId: string): Promise<boolean> {
