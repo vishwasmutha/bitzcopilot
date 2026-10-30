@@ -17,6 +17,9 @@ export const pool =
   new Pool({
     connectionString: databaseUrl,
     ssl: dbSsl(databaseUrl),
+    // Small pool: serverless instances each hold their own, and the hosted database caps total connections.
+    max: Number(process.env.DB_POOL_MAX) || 5,
+    idleTimeoutMillis: 20_000,
   });
 
 if (process.env.NODE_ENV !== "production") {
