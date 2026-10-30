@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint",
     "db:push": "drizzle-kit push",
-    "test:math": "node scripts/impact-math.test.mts && node scripts/engine-math.test.mts && node scripts/collections-math.test.mts",
+    "test:math": "node scripts/impact-math.test.mts && node scripts/engine-math.test.mts && node scripts/collections-math.test.mts && node scripts/llm-errors.test.mts",
     "smoke": "node scripts/smoke.mts"
   },
   "dependencies": {

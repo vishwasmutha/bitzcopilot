@@ -14,12 +14,17 @@ export default function SettingsPage() {
   const router = useRouter();
   const [biz, setBiz] = useState<Biz | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
   const [hasDemo, setHasDemo] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/business/profile").then((r) => r.json()).then((j) => setBiz(j.business ?? null)).catch(() => {});
-    fetch("/api/ai/status").then((r) => r.json()).then((j) => setProvider(j.provider ?? "builtin")).catch(() => setProvider("builtin"));
+    fetch("/api/ai/status").then((r) => r.json()).then((j) => {
+        setProvider(j.provider ?? "builtin");
+        setModel(j.model ?? null);
+      }).catch(() => setProvider("builtin"));
     fetch("/api/demo").then((r) => r.json()).then((j) => setHasDemo(j.hasDemoData ?? false)).catch(() => {});
   }, []);
 
@@ -70,6 +75,20 @@ export default function SettingsPage() {
     return <div className="py-20 text-center text-sm text-slate-400">Loading settings…</div>;
   }
 
+  const testConnection = async () => {
+    setBusy("test");
+    setTest(null);
+    try {
+      const r = await fetch("/api/ai/status", { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      setTest({ ok: !!j.ok, message: j.message ?? j.error ?? "Could not run the test." });
+    } catch {
+      setTest({ ok: false, message: "Could not reach the server." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="bc-fade-up max-w-3xl space-y-6">
       <PageHeader title="Settings" desc="Your business profile, AI engine status and demo data controls." />
@@ -110,21 +129,32 @@ export default function SettingsPage() {
       </Card>
 
       <Card title="AI engine" sub="How the assistant and marketing generator answer">
-        <div className="flex items-center gap-3">
-          <span className={"flex h-10 w-10 items-center justify-center rounded-xl " + (provider === "builtin" ? "bg-slate-100 text-slate-500 dark:bg-slate-800" : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400")}>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={"flex h-10 w-10 items-center justify-center rounded-full " + (provider === "builtin" ? "bg-slate-100 text-slate-500" : "bg-emerald-50 text-emerald-600")}>
             <BrainCircuit className="h-5 w-5" />
           </span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">
-              {provider === "openai" ? "OpenAI (gpt-4o-mini)" : provider === "gemini" ? "Google Gemini (2.0 Flash)" : "Built-in grounded engine"}
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold">
+              {provider === "openai" ? `OpenAI (${model})` : provider === "gemini" ? `Google Gemini (${model})` : "Built-in grounded engine"}
             </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
               {provider === "builtin"
-                ? "No OPENAI_API_KEY or GEMINI_API_KEY is configured on the server, so BizCopilot uses its built-in engine. Every figure still comes from your database — nothing is invented. Add a key in .env to enable full LLM prose."
-                : "External LLM enabled — responses are grounded in your data via a strict no-invented-numbers system prompt."}
+                ? "No OPENAI_API_KEY or GEMINI_API_KEY is configured on the server, so BizCopilot uses its built-in engine. Every figure still comes from your database, nothing is invented. Add a key to .env.local and restart to enable full LLM wording."
+                : "External LLM enabled. Responses are grounded in your data via a strict no-invented-numbers system prompt. If the provider fails, the built-in engine answers instead."}
             </p>
           </div>
           <Badge tone={provider === "builtin" ? "warning" : "success"}>{provider === "builtin" ? "fallback" : "live"}</Badge>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" loading={busy === "test"} onClick={testConnection}>
+            <BrainCircuit className="h-4 w-4" /> Test connection
+          </Button>
+          {test && (
+            <p className={"text-sm " + (test.ok ? "text-emerald-700" : "text-amber-700")} role="status">
+              {test.ok ? "Connected. " : ""}
+              {test.ok ? "" : test.message}
+            </p>
+          )}
         </div>
       </Card>
 

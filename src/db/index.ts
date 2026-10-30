@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { dbSsl } from "./ssl";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -15,6 +16,7 @@ export const pool =
   globalForDb.__arenaNextJsPostgresqlPool ??
   new Pool({
     connectionString: databaseUrl,
+    ssl: dbSsl(databaseUrl),
   });
 
 if (process.env.NODE_ENV !== "production") {

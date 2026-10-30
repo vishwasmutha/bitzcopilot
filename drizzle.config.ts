@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { dbSsl } from "./src/db/ssl";
 
 config({ path: ".env.local" });
 
@@ -12,5 +13,5 @@ if (!databaseUrl) {
 export default defineConfig({
   schema: "./src/db/schema.ts",
   dialect: "postgresql",
-  dbCredentials: { url: databaseUrl },
+  dbCredentials: { url: databaseUrl, ssl: dbSsl(databaseUrl) },
 });

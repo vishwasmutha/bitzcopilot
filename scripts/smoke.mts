@@ -7,14 +7,25 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 let token = "";
 let failures = 0;
 
-async function api(path: string, init: { method?: string; body?: unknown } = {}) {
-  const res = await fetch(BASE + path, {
-    method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-  });
-  const json = await res.json().catch(() => ({}));
-  return { status: res.status, json: json as any };
+/**
+ * The assistant, WhatsApp and marketing routes are rate limited per user on purpose (about 20 a minute).
+ * A run that lands inside the previous run's minute would fail for that reason alone, so on a 429 it waits
+ * for the window to reopen and tries again. Checks that expect a 429 pass `expect429: true`.
+ */
+async function api(path: string, init: { method?: string; body?: unknown; expect429?: boolean } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(BASE + path, {
+      method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    });
+    if (res.status === 429 && !init.expect429 && attempt < 5) {
+      await new Promise((r) => setTimeout(r, 15_000));
+      continue;
+    }
+    const json = await res.json().catch(() => ({}));
+    return { status: res.status, json: json as any };
+  }
 }
 
 async function step(name: string, fn: () => Promise<void>) {
@@ -27,7 +38,37 @@ async function step(name: string, fn: () => Promise<void>) {
   }
 }
 
+/**
+ * The tests add real-looking rows (quick sales, pasted UPI messages, credit entries). Left in place they pile up
+ * and fill in the planted sales dip the impact checks look for, so every run removes exactly what it created.
+ * Matches only the test signatures below, so it cannot touch real data. Skipped if there is no DATABASE_URL.
+ */
+async function cleanupTestRows(when: string) {
+  try {
+    try {
+      process.loadEnvFile(".env.local");
+    } catch {
+      // no .env.local: rely on the environment
+    }
+    const url = process.env.DATABASE_URL;
+    if (!url) return console.log(`  (no DATABASE_URL, skipping ${when} cleanup of test rows)`);
+    const { default: pg } = await import("pg");
+    const client = new pg.Client({ connectionString: url });
+    await client.connect();
+    const q = async (sql: string) => (await client.query(sql)).rowCount ?? 0;
+    const sales = await q(`delete from sales where demo = false and (customer_id = 'Q-ramesh-smoke' or product_name = 'UPI receipt' or quantity = 2.5)`);
+    const cust = await q(`delete from customers where demo = false and (ref_id = 'Q-ramesh-smoke' or name ilike '%smoke%')`);
+    const cash = await q(`delete from cash_items where demo = false and (party ilike '%smoke%' or party ilike 'Live Test%')`);
+    const files = await q(`delete from uploaded_files where is_demo = false and file_name like 'pasted-%'`);
+    await client.end();
+    console.log(`  (${when} cleanup of test rows: ${sales} sales, ${cust} customers, ${cash} credit entries, ${files} import records)`);
+  } catch (e) {
+    console.log(`  (${when} cleanup skipped: ${(e as Error).message.split("\n")[0]})`);
+  }
+}
+
 console.log(`Smoke test against ${BASE}`);
+await cleanupTestRows("start");
 
 await step("demo login", async () => {
   const r = await api("/api/auth/demo", { body: {} });
@@ -408,5 +449,6 @@ for (const path of ["/impact", "/cash", "/autopilot", "/customers", "/marketing"
   });
 }
 
+await cleanupTestRows("end");
 console.log(failures ? `\n${failures} check(s) failed` : "\nAll smoke checks passed");
 process.exit(failures ? 1 : 0);

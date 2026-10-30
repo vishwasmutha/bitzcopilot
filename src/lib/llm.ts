@@ -1,4 +1,5 @@
 import "server-only";
+import { explainLlmFailure, safeSnippet } from "./llm-errors";
 import {
   getCustomerAnalytics,
   getDailySalesSeries,
@@ -38,23 +39,31 @@ export function rateLimited(userId: string, limit = 20, windowMs = 60_000): bool
 
 /* ----------------------------- LLM calls ----------------------------- */
 
-async function callLLM(rawSystem: string, rawUser: string): Promise<string | null> {
-  // Phone numbers, emails, UPI IDs and GSTINs never leave the server for a model.
-  const system = maskPii(rawSystem);
-  const user = maskPii(rawUser);
+/** The model in use, taken from the environment so a retired model never needs a code change. */
+export function getModel(): string | null {
+  const p = getProvider();
+  if (p === "openai") return process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+  if (p === "gemini") return process.env.GEMINI_MODEL?.trim() || "gemini-flash-lite-latest";
+  return null;
+}
+
+type LlmResult = { text: string | null; failure?: { status: number; hint: string; detail: string } };
+
+/** One request to the configured provider. Never throws and never logs the key. */
+async function requestLLM(system: string, user: string, maxTokens = 700): Promise<LlmResult> {
+  const provider = getProvider();
+  if (provider === "builtin") return { text: null };
+  const model = getModel()!;
   try {
-    const provider = getProvider();
+    let res: Response;
     if (provider === "openai") {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model,
           temperature: 0.4,
-          max_tokens: 700,
+          max_tokens: maxTokens,
           messages: [
             { role: "system", content: system },
             { role: "user", content: user },
@@ -62,32 +71,52 @@ async function callLLM(rawSystem: string, rawUser: string): Promise<string | nul
         }),
         signal: AbortSignal.timeout(30_000),
       });
-      if (!res.ok) return null;
-      const data: any = await res.json();
-      return data?.choices?.[0]?.message?.content?.trim() || null;
+    } else {
+      // The key travels in a header, not the URL, so it cannot end up in logs or error messages.
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY!.trim() },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: maxTokens },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
     }
-    if (provider === "gemini") {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: system }] },
-            contents: [{ role: "user", parts: [{ text: user }] }],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 700 },
-          }),
-          signal: AbortSignal.timeout(30_000),
-        }
-      );
-      if (!res.ok) return null;
-      const data: any = await res.json();
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const { status, hint } = explainLlmFailure(provider, res.status, body);
+      const detail = safeSnippet(body);
+      console.error(`LLM call failed (${provider}/${model}) HTTP ${status}: ${hint} ${detail}`);
+      return { text: null, failure: { status, hint, detail } };
     }
-    return null;
-  } catch {
-    return null;
+    const data: any = await res.json();
+    const text = provider === "openai" ? data?.choices?.[0]?.message?.content : data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return { text: typeof text === "string" && text.trim() ? text.trim() : null };
+  } catch (e) {
+    const hint = e instanceof Error && e.name === "TimeoutError" ? "The provider took too long to answer." : "Could not reach the provider. Check the network connection.";
+    console.error(`LLM call failed (${provider}/${model}): ${hint}`);
+    return { text: null, failure: { status: 0, hint, detail: "" } };
   }
+}
+
+async function callLLM(rawSystem: string, rawUser: string): Promise<string | null> {
+  // Phone numbers, emails, UPI IDs and GSTINs never leave the server for a model.
+  return (await requestLLM(maskPii(rawSystem), maskPii(rawUser))).text;
+}
+
+/** Settings > "Test connection": a tiny real call so a bad key or retired model is visible, not silent. */
+export async function pingLLM(): Promise<{ ok: boolean; provider: ReturnType<typeof getProvider>; model: string | null; message: string }> {
+  const provider = getProvider();
+  const model = getModel();
+  if (provider === "builtin") {
+    return { ok: false, provider, model, message: "No key is configured, so the built-in engine is in use. Add GEMINI_API_KEY or OPENAI_API_KEY to .env.local and restart." };
+  }
+  const r = await requestLLM("Reply with the single word OK.", "ping", 8);
+  if (r.text) return { ok: true, provider, model, message: "Connected. The model answered." };
+  const f = r.failure;
+  return { ok: false, provider, model, message: f ? `${f.hint}${f.detail ? ` (${f.detail})` : ""}` : "The model returned an empty answer." };
 }
 
 const GROUNDING_PROMPT = `You are BizCopilot, a business intelligence assistant for a small business. You will be given the business's REAL, up-to-date metrics in a "DATA" block.
