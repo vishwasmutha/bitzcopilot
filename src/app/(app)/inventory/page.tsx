@@ -60,7 +60,8 @@ export default function InventoryPage() {
     }
   }, []);
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const loadHistory = async (p: Rec) => {

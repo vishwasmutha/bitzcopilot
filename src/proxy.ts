@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
  * Setting the cookie on that navigation (not only on the XHR) is what makes
  * Option B survive embedded previews that drop Set-Cookie on fetch.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const sid = req.nextUrl.searchParams.get("sid");
   if (!sid || sid.split(".").length !== 3 || sid.length > 4000) return NextResponse.next();
   const url = req.nextUrl.clone();

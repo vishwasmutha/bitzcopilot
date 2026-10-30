@@ -54,7 +54,8 @@ export function PurchasePlan() {
     }
   };
   useEffect(() => {
-    load(true);
+    const timer = window.setTimeout(() => void load(true), 0);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

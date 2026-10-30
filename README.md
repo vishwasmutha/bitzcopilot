@@ -33,21 +33,25 @@ An AI-powered business intelligence and digital-transformation assistant for sma
 
 ## Getting started
 
-```bash
-# 1. Install
+### Windows (PowerShell)
+
+```powershell
 npm install
-
-# 2. Environment
-cp .env.example .env          # set DATABASE_URL (and JWT_SECRET)
-                              # optionally set OPENAI_API_KEY / GEMINI_API_KEY
-
-# 3. Database schema (PostgreSQL)
-npx drizzle-kit push
-
-# 4. Run
-npm run dev                   # development
-npm run build && npm start    # production
+Copy-Item .env.example .env.local
 ```
+
+Edit `.env.local` and set `DATABASE_URL` to your PostgreSQL connection string and `JWT_SECRET` to a long random value. The sample values in `.env.example` are for local development only. PostgreSQL must be running and the database named in `DATABASE_URL` must already exist. Production startup requires an explicitly configured `JWT_SECRET` and will fail closed without it.
+
+Then sync the schema and start the development server:
+
+```powershell
+npm run db:push
+npm run dev
+```
+
+Open http://localhost:3000. Use `npm run check` to run TypeScript and ESLint checks, or `npm run build` to create a production build. For production, configure the same environment variables in the hosting provider before building and starting with `npm start`.
+
+Optional: set `OPENAI_API_KEY` or `GEMINI_API_KEY` in `.env.local` to enable an external language model. Without a key, the built-in grounded engine is used.
 
 Open the app → **Sign up**, finish onboarding (optionally load the demo dataset), or hit **“Explore the demo bakery”** for a pre-loaded workspace.
 

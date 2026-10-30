@@ -66,6 +66,7 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
   const bottom = useRef<HTMLDivElement>(null);
   const recRef = useRef<{ stop: () => void } | null>(null);
   const started = useRef(0);
+  const optimisticId = useRef(0);
 
   const load = useCallback(async (nextLang: Lang) => {
     const r = await authFetch(`/api/wa/thread?lang=${nextLang}`);
@@ -84,7 +85,8 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
   }, []);
 
   useEffect(() => {
-    load(lang);
+    const timer = window.setTimeout(() => void load(lang), 0);
+    return () => window.clearTimeout(timer);
   }, [lang, load]);
 
   useEffect(() => {
@@ -103,8 +105,9 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
     setText("");
     setBusy(true);
     setError(null);
+    optimisticId.current += 1;
     const optimistic: Msg = {
-      id: "tmp-" + Date.now(),
+      id: `tmp-${optimisticId.current}`,
       direction: "in",
       kind: voice ? "voice" : "text",
       body: q,
@@ -143,10 +146,12 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
     rec.lang = LANG_OPTIONS.find((l) => l.id === lang)?.speech ?? "kn-IN";
     rec.interimResults = true;
     rec.continuous = false;
-    started.current = Date.now();
     setSeconds(0);
     setListening(true);
     let finalText = "";
+    rec.onstart = () => {
+      started.current = Date.now();
+    };
     rec.onresult = (e) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -366,6 +371,7 @@ type SpeechRec = {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
+  onstart: () => void;
   onresult: (e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void;
   onerror: () => void;
   onend: () => void;

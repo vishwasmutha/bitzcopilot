@@ -44,7 +44,8 @@ const NAV = [
 function useTheme() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
+    const timer = window.setTimeout(() => setDark(document.documentElement.classList.contains("dark")), 0);
+    return () => window.clearTimeout(timer);
   }, []);
   const toggle = () => {
     const next = !dark;
@@ -107,8 +108,6 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => setMobileOpen(false), [pathname]);
-
   const title = NAV.find((n) => n.href === pathname)?.label ?? "WhatsApp";
   const focusWa = pathname === "/wa";
 
@@ -162,6 +161,7 @@ export function AppShell({
                     key={n.href}
                     href={n.href}
                     title={n.label}
+                    onClick={() => setMobileOpen(false)}
                     className={
                       "flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors " +
                       (collapsed ? "lg:justify-center lg:px-0 " : "") +

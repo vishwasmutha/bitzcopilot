@@ -70,7 +70,8 @@ export default function ForecastPage() {
   }, [horizon]);
 
   useEffect(() => {
-    loadLatest();
+    const timer = window.setTimeout(() => void loadLatest(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadLatest]);
 
   const generate = async () => {

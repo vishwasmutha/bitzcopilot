@@ -9,7 +9,12 @@ const TOKEN_COOKIE = "bizcopilot_token";
 const SESSION_DAYS = 7;
 
 function getSecret(): string {
-  return process.env.JWT_SECRET || "bizcopilot-dev-secret-change-me-in-production";
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET must be configured in production.");
+  }
+  return "bizcopilot-dev-secret-change-me-in-production";
 }
 
 /* ---------------------------- passwords ---------------------------- */

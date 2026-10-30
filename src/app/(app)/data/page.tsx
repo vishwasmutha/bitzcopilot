@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, FileSpreadsheet, History, UploadCloud, X } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, History, UploadCloud, X } from "lucide-react";
 import { Badge, Button, Card, EmptyState, PageHeader, Select, Spinner, useToast } from "@/components/ui";
 import { shortDate } from "@/lib/utils";
 
@@ -117,7 +117,7 @@ export default function DataPage() {
     reset();
     setFile(f);
     try {
-      const XLSX = await import("xlsx");
+      const XLSX = await import("@e965/xlsx");
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
@@ -169,6 +169,16 @@ export default function DataPage() {
 
   const previewRows = (rows ?? []).slice(0, 8);
 
+  const downloadTemplate = () => {
+    const csv = `${FIELDS[type].map((field) => field.key).join(",")}\n`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bizcopilot-${type}-template.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="bc-fade-up">
       <PageHeader title="Data & Import" desc="Bring in your sales, products, inventory or customer files. Columns are auto-detected — adjust the mapping before importing." />
@@ -199,6 +209,9 @@ export default function DataPage() {
                 </button>
               ))}
             </div>
+            <Button variant="outline" className="mt-4" onClick={downloadTemplate}>
+              <Download className="h-4 w-4" /> Download {type} CSV template
+            </Button>
           </Card>
 
           {/* Step 2: file */}
