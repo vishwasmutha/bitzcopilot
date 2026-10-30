@@ -70,6 +70,7 @@ export default async function DashboardPage() {
   if (!session) return <SessionBootstrap />;
   if (!session.business) redirect("/onboarding");
   const bizId = session.business.id;
+  const isServiceBusiness = ["Salon", "Local Services"].includes(session.business.category);
 
   const [overview, daily30, monthly, perf, categories, cust, insights, isDemoData] = await Promise.all([
     getOverview(bizId),
@@ -119,9 +120,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="bc-fade-up space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#128C7E]/30 bg-[#ecfdf3] px-4 py-3 text-[13px] text-[#075E54] dark:border-[#25D366]/20 dark:bg-[#25D366]/10 dark:text-emerald-200">
-        <span>Owners get this on WhatsApp at 9 AM — voice notes in Kannada or Hindi, one tap to approve a promo. This desk view is secondary.</span>
-        <Link href="/wa" className="font-semibold underline">Open WhatsApp</Link>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <span>{session.business.category} overview · sales, customer activity, and {isServiceBusiness ? "service" : "product"} performance from your data.</span>
+        <div className="flex items-center gap-4">
+          <Link href="/data" className="font-semibold text-brand-600 hover:underline dark:text-brand-400">Import data</Link>
+          <Link href="/wa" className="font-semibold text-brand-600 hover:underline dark:text-brand-400">WhatsApp</Link>
+        </div>
       </div>
       {isDemoData && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
@@ -139,8 +143,8 @@ export default async function DashboardPage() {
         <Stat icon={<ReceiptText className="h-4 w-4" />} label="Orders (30d)" value={fmtNumber(overview.orders30)} sub={`${fmtNumber(overview.totalOrders)} all-time`} />
         <Stat icon={<ShoppingCart className="h-4 w-4" />} label="Avg order value" value={overview.aov ? fmtCurrency(overview.aov) : "—"} sub="last 30 days" />
         <Stat icon={<Target className="h-4 w-4" />} label="Predicted (7d)" value={overview.predictedRevenue7 != null ? fmtCurrency(overview.predictedRevenue7) : "—"} sub={overview.predictedRevenue7 != null ? "trend model" : "needs 4+ wks of data"} />
-        <Stat icon={<Package className="h-4 w-4" />} label="Products" value={fmtNumber(overview.productCount)} sub={`${overview.outOfStockCount} out of stock`} />
-        <Stat icon={<Wallet className="h-4 w-4" />} label="Inventory value" value={fmtCurrency(overview.inventoryValue)} sub="at unit cost" />
+        <Stat icon={<Package className="h-4 w-4" />} label={isServiceBusiness ? "Services offered" : "Products"} value={fmtNumber(overview.productCount)} sub={isServiceBusiness ? "in your service catalogue" : `${overview.outOfStockCount} out of stock`} />
+        {!isServiceBusiness && <Stat icon={<Wallet className="h-4 w-4" />} label="Inventory value" value={fmtCurrency(overview.inventoryValue)} sub="at unit cost" />}
         <Stat icon={<Users className="h-4 w-4" />} label="Active customers" value={fmtNumber(overview.activeCustomers30)} sub={`of ${fmtNumber(overview.totalCustomers)} total (30d)`} />
         <Stat icon={<Sparkles className="h-4 w-4" />} label="Total revenue" value={fmtCurrency(overview.totalRevenue, true)} sub={`${overview.dataDays} selling days on record`} />
       </div>
@@ -171,7 +175,7 @@ export default async function DashboardPage() {
         <Card title="Monthly revenue" sub="Trailing 8 months">
           {overview.hasData ? <CompareBars data={compare} height={240} /> : <NoData />}
         </Card>
-        <Card title="Top-selling products" sub="Last 30 days by revenue">
+        <Card title={isServiceBusiness ? "Top-performing services" : "Top-selling products"} sub="Last 30 days by revenue">
           {top5.length ? <BarsChart data={top5} horizontal height={240} /> : <NoData />}
         </Card>
         <Card title="Category revenue" sub="Last 30 days">
@@ -194,11 +198,11 @@ export default async function DashboardPage() {
             <NoData msg="Forecasting unlocks with 2+ weeks of sales history." />
           )}
         </Card>
-        <Card title="Least-selling products" sub="Last 30 days — candidates for a promo">
+        <Card title={isServiceBusiness ? "Services to feature" : "Least-selling products"} sub={isServiceBusiness ? "Last 30 days — opportunities to promote" : "Last 30 days — candidates for a promo"}>
           {least.length ? (
             <BarsChart data={least} horizontal height={240} color="#f59e0b" />
           ) : (
-            <NoData msg="Not enough product variety to rank yet." />
+            <NoData msg={isServiceBusiness ? "Not enough service variety to rank yet." : "Not enough product variety to rank yet."} />
           )}
         </Card>
       </div>

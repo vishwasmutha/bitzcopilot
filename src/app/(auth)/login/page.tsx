@@ -25,7 +25,7 @@ function LoginForm() {
       setError("Not authenticated — the server didn't return a session. Please try Option B again.");
       return;
     }
-    goSignedIn(token, "/wa");
+    goSignedIn(token, "/dashboard");
   };
 
   const submit = async (e: FormEvent) => {

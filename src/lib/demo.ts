@@ -122,6 +122,18 @@ const PACKS: Record<string, DemoProduct[]> = {
     { name: "Compact Umbrella", category: "Accessories", cost: 6, price: 18, stock: 24, min: 10, trend: 1, weight: 5 },
     { name: "Cologne 50ml", category: "Beauty", cost: 21, price: 65, stock: 7, min: 5, trend: 0.95, weight: 4 },
   ],
+  "Local Services": [
+    { name: "Home cleaning visit", category: "Cleaning", cost: 18, price: 75, stock: 999, min: 0, trend: 1.1, weight: 10 },
+    { name: "Deep cleaning service", category: "Cleaning", cost: 35, price: 145, stock: 999, min: 0, trend: 1.05, weight: 6 },
+    { name: "Plumbing call-out", category: "Repairs", cost: 22, price: 95, stock: 999, min: 0, trend: 1, weight: 8 },
+    { name: "Electrical repair visit", category: "Repairs", cost: 26, price: 110, stock: 999, min: 0, trend: 1.15, weight: 7 },
+    { name: "Air conditioning service", category: "Maintenance", cost: 32, price: 135, stock: 999, min: 0, trend: 1.2, weight: 6 },
+    { name: "Appliance installation", category: "Installation", cost: 28, price: 120, stock: 999, min: 0, trend: 0.9, weight: 5 },
+    { name: "Handyman visit", category: "Repairs", cost: 20, price: 85, stock: 999, min: 0, trend: 1, weight: 7 },
+    { name: "Pest control treatment", category: "Maintenance", cost: 30, price: 125, stock: 999, min: 0, trend: 0.95, weight: 5 },
+    { name: "Water filter maintenance", category: "Maintenance", cost: 16, price: 68, stock: 999, min: 0, trend: 1.1, weight: 6 },
+    { name: "Painting labor", category: "Home improvement", cost: 55, price: 230, stock: 999, min: 0, trend: 0.85, weight: 4 },
+  ],
 };
 
 const packFor = (category: string): DemoProduct[] =>
@@ -130,6 +142,7 @@ const packFor = (category: string): DemoProduct[] =>
   : category === "Bakery" ? PACKS.Bakery
   : category === "Restaurant" ? PACKS.Restaurant
   : category === "Grocery Store" ? PACKS["Grocery Store"]
+  : category === "Local Services" ? PACKS["Local Services"]
   : PACKS.Retail;
 
 const FIRST_IN = ["Lakshmi", "Ravi", "Meena", "Suresh", "Asha", "Imran", "Kavya", "Arun", "Divya", "Farooq", "Pooja", "Naveen", "Shilpa", "Harish", "Anitha", "Kiran"];

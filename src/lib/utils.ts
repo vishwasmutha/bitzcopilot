@@ -6,6 +6,7 @@ export const CATEGORY_OPTIONS = [
   "Grocery Store",
   "Retail Store",
   "Clothing Store",
+  "Local Services",
   "Other",
 ] as const;
 

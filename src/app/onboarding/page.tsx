@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Cake, Coffee, Leaf, Scissors, Shirt, ShoppingBag, Store } from "lucide-react";
+import { Cake, Coffee, Leaf, Scissors, Shirt, ShoppingBag, Store, Wrench } from "lucide-react";
 import { Badge, Button, Field, Input, Select } from "@/components/ui";
 import { Logo } from "../page";
 import { BUSINESS_SIZES, CATEGORY_OPTIONS } from "@/lib/utils";
@@ -15,6 +15,7 @@ const CAT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "Grocery Store": Leaf,
   "Retail Store": ShoppingBag,
   "Clothing Store": Shirt,
+  "Local Services": Wrench,
   Other: Store,
 };
 
@@ -34,7 +35,7 @@ export default function OnboardingPage() {
     fetch("/api/business/profile")
       .then((r) => r.json())
       .then((j) => {
-        if (j.business) router.replace("/wa");
+        if (j.business) router.replace("/dashboard");
         else setChecked(true);
       })
       .catch(() => setChecked(true));
@@ -59,7 +60,7 @@ export default function OnboardingPage() {
           body: JSON.stringify({ action: "load", category }),
         });
       }
-      router.push("/wa");
+      router.push("/dashboard");
       router.refresh();
     } finally {
       setBusy(false);

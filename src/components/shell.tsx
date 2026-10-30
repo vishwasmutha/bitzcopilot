@@ -28,8 +28,8 @@ import { Logo } from "@/app/page";
 import { clearToken } from "@/lib/client-auth";
 
 const NAV = [
+  { href: "/dashboard", label: "Business dashboard", icon: LayoutDashboard, group: "Overview" },
   { href: "/wa", label: "WhatsApp", icon: MessageCircle, group: "Overview" },
-  { href: "/dashboard", label: "Desk dashboard", icon: LayoutDashboard, group: "Overview" },
   { href: "/assistant", label: "AI Assistant", icon: MessageSquareText, group: "Overview" },
   { href: "/data", label: "Data & Import", icon: Upload, group: "Analyze" },
   { href: "/what-if", label: "What if?", icon: FlaskConical, group: "Analyze" },

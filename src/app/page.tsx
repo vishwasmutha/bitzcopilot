@@ -77,7 +77,7 @@ export default function Landing() {
     try {
       const r = await fetch("/api/auth/demo", { method: "POST", credentials: "include" });
       const j = await r.json().catch(() => ({}));
-      if (r.ok && j.token) goSignedIn(j.token, "/wa");
+      if (r.ok && j.token) goSignedIn(j.token, "/dashboard");
       else alert(j.error ?? "Not authenticated — demo sign-in did not return a session.");
     } finally {
       setDemoBusy(false);
@@ -120,28 +120,27 @@ export default function Landing() {
               <Store className="h-3.5 w-3.5" /> Built for small business owners, not analysts
             </div>
             <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
-              The copilot lives
+              Your business,
               <br />
-              on WhatsApp.
+              clearly in view.
               <br />
-              <span className="text-[#25D366]">Not in a dashboard.</span>
+              <span className="text-[#25D366]">Your next move, backed by data.</span>
             </h1>
             <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-300">
-              A kirana or salon owner in Bengaluru will not open a desk app at 9 AM. BizCopilot sends the brief there —
-              “Rice will run out in 3 days. Weekday sales are down 18%.” — takes a voice note in Kannada or Hindi, and
-              waits for one tap before any promo goes out.
+              See sales, customers, forecasts, products or services in one practical dashboard. Built for retailers,
+              salons and local service businesses, with WhatsApp briefs available whenever you need them.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button size="lg" className="!bg-[#25D366] !text-[#0b141a] hover:!bg-[#1ebe5d]" loading={demoBusy} onClick={startDemo}>
-                Open the WhatsApp demo <ArrowRight className="h-4 w-4" />
+              <Button size="lg" loading={demoBusy} onClick={startDemo}>
+                Explore the business dashboard <ArrowRight className="h-4 w-4" />
               </Button>
-              <Link href="/login">
+              <Link href="/wa">
                 <Button size="lg" variant="outline" className="border-white/25 text-white hover:bg-white/10">
-                  Option B · WhatsApp number
+                  WhatsApp brief
                 </Button>
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-400">Demo shop 98450 12345 · PIN demo1234. Desk dashboard is there if you want it — owners don&apos;t have to.</p>
+            <p className="mt-4 text-xs text-slate-400">Includes sales trends, customer activity, forecasts, and operations tools. WhatsApp is available as a separate workspace view.</p>
           </div>
 
           {/* Product mock */}

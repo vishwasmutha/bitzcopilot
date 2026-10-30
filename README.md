@@ -1,8 +1,8 @@
 # BizCopilot
 
-**Meet owners on WhatsApp. The desk dashboard is secondary.**
+**A practical business dashboard, with WhatsApp as a companion.**
 
-A kirana or salon owner in Bengaluru will not open a dashboard at 9 AM. BizCopilot sends the brief there, takes voice notes in Kannada or Hindi, and waits for one tap before a promo goes out.
+BizCopilot opens on a live business dashboard for retailers, salons, and local service providers. Owners can review sales, customers, forecasts, and product or service performance, then use the separate WhatsApp workspace for multilingual briefs and approval-based promos.
 
 Sign in with **Option B** (WhatsApp number). Demo shop: `98450 12345` / PIN `demo1234`. Option A (email) still works: `demo@bizcopilot.app` / `demo1234`.
 
@@ -21,7 +21,7 @@ An AI-powered business intelligence and digital-transformation assistant for sma
 | Module | What it does |
 | --- | --- |
 | **Auth & onboarding** | Register / login / forgot-password (reset codes), JWT httpOnly session cookies, scrypt-hashed passwords, business onboarding (category, location, size, employees), one-click **demo account** (`demo@bizcopilot.app` / `demo1234`) |
-| **Dashboard** | 8 KPI cards (revenue, orders, AOV, products, inventory value, active customers, growth, 7-day prediction), 7 interactive charts, auto-generated insights, recent alerts — all computed from stored rows |
+| **Dashboard** | Category-aware KPIs for revenue, transactions, forecasts, customers, products or services; 7 interactive charts, auto-generated insights and recent alerts — all computed from stored rows |
 | **Data & import** | `.csv` / `.xlsx` upload for sales, products, inventory, customers. In-browser parse (SheetJS), column auto-detection + manual mapping, preview, missing-value & duplicate detection, date normalisation (ISO/US/EU/Excel serial), server-side re-validation, dedupe against existing rows, import history |
 | **AI assistant** | Natural-language Q&A wired to the authenticated business's DB. Intent detection → real queries → answer + charts. OpenAI or Gemini when a key is configured; otherwise a clearly-labelled built-in engine. Strict "no invented numbers" grounding prompt, 20 req/min rate limit, full conversation history |
 | **ML forecasting** | Two models — OLS trend regression with day-of-week dummies and additive **Holt-Winters** (period 7, parameter grid search) — compared on a holdout window (MAE / RMSE / MAPE), winner retrained on all data. 7–60 day horizon, ±98% confidence band, weekly pattern, product-level demand vs stock |

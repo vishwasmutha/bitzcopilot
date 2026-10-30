@@ -30,8 +30,8 @@ export function clearToken() {
   document.cookie = "bizcopilot_token=; Path=/; Max-Age=0";
 }
 
-/** Hard navigation so the middleware can attach the httpOnly cookie before the next render. */
-export function goSignedIn(token: string, next = "/wa") {
+/** Hard navigation so the proxy can attach the httpOnly cookie before the next render. */
+export function goSignedIn(token: string, next = "/dashboard") {
   persistToken(token);
   const url = new URL(next, location.origin);
   url.searchParams.set("sid", token);
