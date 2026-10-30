@@ -110,13 +110,11 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-navy-950 text-white">
+      <section className="relative overflow-hidden border-b border-violet-100 bg-white text-slate-900">
         <div className="bg-grid-navy absolute inset-0" />
-        <div className="absolute -top-32 right-0 h-96 w-96 rounded-full bg-brand-600/20 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 h-72 w-72 rounded-full bg-accent-600/15 blur-[110px]" />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:items-center lg:py-28">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-brand-200">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800">
               <Store className="h-3.5 w-3.5" /> Built for small business owners, not analysts
             </div>
             <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
@@ -124,9 +122,9 @@ export default function Landing() {
               <br />
               clearly in view.
               <br />
-              <span className="text-[#25D366]">Your next move, backed by data.</span>
+              <span className="text-violet-700">Your next move, backed by data.</span>
             </h1>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-300">
+            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-600">
               See sales, customers, forecasts, products or services in one practical dashboard. Built for retailers,
               salons and local service businesses, with WhatsApp briefs available whenever you need them.
             </p>
@@ -135,23 +133,23 @@ export default function Landing() {
                 Explore the business dashboard <ArrowRight className="h-4 w-4" />
               </Button>
               <Link href="/wa">
-                <Button size="lg" variant="outline" className="border-white/25 text-white hover:bg-white/10">
+                <Button size="lg" variant="outline" className="border-violet-200 text-violet-800 hover:bg-violet-50">
                   WhatsApp brief
                 </Button>
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-400">Includes sales trends, customer activity, forecasts, and operations tools. WhatsApp is available as a separate workspace view.</p>
+            <p className="mt-4 text-xs text-slate-500">Includes sales trends, customer activity, forecasts, and operations tools. WhatsApp is available as a separate workspace view.</p>
           </div>
 
           {/* Product mock */}
           <div className="relative">
-            <div className="rounded-2xl border border-white/10 bg-navy-900/80 p-4 shadow-2xl backdrop-blur">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-lg shadow-violet-950/5">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] uppercase tracking-wider text-slate-400">Annapurna Kirana · Jayanagar</p>
-                  <p className="font-display text-sm font-semibold">9:00 AM brief</p>
+                  <p className="text-[11px] uppercase tracking-wider text-slate-500">Annapurna Kirana · Jayanagar</p>
+                  <p className="font-display text-sm font-semibold text-slate-900">Business snapshot</p>
                 </div>
-                <span className="rounded-full bg-[#25D366]/15 px-2 py-0.5 text-[11px] font-medium text-[#25D366]">WhatsApp</span>
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800">Live data</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -159,23 +157,23 @@ export default function Landing() {
                   { k: "Orders", v: "1,204" },
                   { k: "Forecast 7d", v: "$4,310" },
                 ].map((s) => (
-                  <div key={s.k} className="rounded-lg bg-white/5 p-3">
-                    <p className="text-[10px] text-slate-400">{s.k}</p>
-                    <p className="font-display text-base font-bold">{s.v}</p>
+                  <div key={s.k} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <p className="text-[10px] text-slate-500">{s.k}</p>
+                    <p className="font-display text-base font-bold text-slate-900">{s.v}</p>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 rounded-lg bg-white/5 p-3">
-                <p className="mb-2 text-[10px] text-slate-400">Daily revenue</p>
+              <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3">
+                <p className="mb-2 text-[10px] text-slate-500">Daily revenue</p>
                 <div className="flex h-24 items-end gap-1">
                   {[38, 42, 40, 47, 52, 44, 39, 55, 61, 58, 64, 50, 46, 52, 68, 74, 70, 76, 62, 58, 66, 72, 78, 74, 82, 60, 65, 70].map((h, i) => (
                     <div key={i} className="flex-1 rounded-sm bg-gradient-to-t from-brand-600 to-brand-400" style={{ height: `${h}%`, opacity: 0.55 + (i / 60) }} />
                   ))}
                 </div>
               </div>
-              <div className="mt-3 rounded-lg border border-[#25D366]/25 bg-[#25D366]/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-100">
+              <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] leading-relaxed text-violet-950">
                 Rice will run out in 3 days. Weekday sales are down 18%.
-                <span className="mt-1 block font-semibold text-[#25D366]">Approve promo →</span>
+                <span className="mt-1 block font-semibold text-violet-700">Review recommendation →</span>
               </div>
             </div>
           </div>
@@ -217,21 +215,21 @@ export default function Landing() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="border-y border-slate-200 bg-navy-950 py-20 text-white dark:border-slate-800">
+      <section id="how" className="border-y border-violet-100 bg-white py-20 text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 className="font-display mb-12 text-center text-3xl font-bold tracking-tight">Live in an afternoon</h2>
           <div className="grid gap-8 md:grid-cols-3">
             {STEPS.map((s) => (
-              <div key={s.n} className="relative rounded-xl border border-white/10 bg-white/5 p-6">
-                <span className="font-display text-sm font-bold text-brand-400">{s.n}</span>
+              <div key={s.n} className="relative rounded-xl border border-violet-100 bg-violet-50/50 p-6 dark:border-slate-800 dark:bg-slate-900">
+                <span className="font-display text-sm font-bold text-violet-700 dark:text-brand-300">{s.n}</span>
                 <h3 className="font-display mt-3 text-lg font-semibold">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300">{s.desc}</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{s.desc}</p>
               </div>
             ))}
           </div>
           <div className="mt-14 flex flex-col items-center gap-4 text-center">
-            <p className="flex items-center gap-2 text-sm text-slate-300">
-              <TrendingUp className="h-4 w-4 text-emerald-400" /> The assistant never invents financial figures — ask it anything, it will only answer from your database.
+            <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <TrendingUp className="h-4 w-4 text-violet-600" /> The assistant never invents financial figures — ask it anything, it will only answer from your database.
             </p>
             <Link href="/signup">
               <Button size="lg">

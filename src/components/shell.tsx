@@ -7,6 +7,7 @@ import {
   Bell,
   ChevronsLeft,
   ChevronsRight,
+  DoorOpen,
   LayoutDashboard,
   FlaskConical,
   LineChart,
@@ -108,7 +109,7 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const title = NAV.find((n) => n.href === pathname)?.label ?? "WhatsApp";
+  const title = NAV.find((n) => n.href === pathname)?.label ?? "Business dashboard";
   const focusWa = pathname === "/wa";
 
   const signOut = async () => {
@@ -166,11 +167,11 @@ export function AppShell({
                       "flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors " +
                       (collapsed ? "lg:justify-center lg:px-0 " : "") +
                       (active
-                        ? "bg-brand-600/20 text-white ring-1 ring-inset ring-brand-500/30"
+                        ? "bg-violet-500/20 text-white ring-1 ring-inset ring-violet-300/30"
                         : "text-slate-400 hover:bg-white/5 hover:text-white")
                     }
                   >
-                    <n.icon className={"h-[17px] w-[17px] shrink-0 " + (active ? "text-brand-300" : "")} />
+                    <n.icon className={"h-[17px] w-[17px] shrink-0 " + (active ? "text-violet-200" : "")} />
                     <span className={collapsed ? "lg:hidden" : ""}>{n.label}</span>
                   </Link>
                 );
@@ -192,7 +193,7 @@ export function AppShell({
             </div>
           )}
           {!collapsed && (
-            <button onClick={signOut} className="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white" title="Sign out">
+            <button onClick={signOut} className="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white" title="Sign out" aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </button>
           )}
@@ -211,11 +212,11 @@ export function AppShell({
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen bg-white dark:bg-slate-950">
         {/* Desktop sidebar */}
         <aside
           className={
-            "fixed inset-y-0 left-0 z-40 hidden bg-navy-950 transition-[width] duration-200 lg:block " +
+            "fixed inset-y-0 left-0 z-40 hidden bg-violet-950 transition-[width] duration-200 lg:block " +
             (collapsed ? "w-[70px]" : "w-[248px]")
           }
         >
@@ -225,9 +226,9 @@ export function AppShell({
         {/* Mobile sidebar */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
-            <div className="absolute inset-0 bg-navy-950/60" onClick={() => setMobileOpen(false)} />
-            <aside className="absolute inset-y-0 left-0 w-[270px] bg-navy-950">
-              <button onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-slate-400 hover:text-white">
+            <div className="absolute inset-0 bg-violet-950/50" onClick={() => setMobileOpen(false)} />
+            <aside className="absolute inset-y-0 left-0 w-[270px] bg-violet-950">
+              <button onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-slate-400 hover:text-white" aria-label="Close menu">
                 <X className="h-4 w-4" />
               </button>
               {sidebar}
@@ -237,7 +238,7 @@ export function AppShell({
 
         <div className={"lg:transition-[margin] " + (collapsed ? "lg:ml-[70px]" : "lg:ml-[248px]")}>
           {/* Topbar */}
-          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-950/85">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-slate-800 dark:bg-slate-950/85">
             <div className="flex items-center gap-3">
               <button onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden dark:hover:bg-slate-800" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
@@ -253,6 +254,14 @@ export function AppShell({
               >
                 {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
               </button>
+              <Link
+                href="/"
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-violet-50 hover:text-violet-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                aria-label="Exit to home without signing out"
+                title="Exit to home without signing out"
+              >
+                <DoorOpen className="h-[18px] w-[18px]" />
+              </Link>
               <BellWidget />
               <div className="ml-1 hidden h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-xs font-bold text-white sm:flex">
                 {userName.slice(0, 1).toUpperCase()}

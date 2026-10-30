@@ -148,7 +148,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
       <div className={cn("bc-scale-in relative w-full rounded-xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900", wide ? "max-w-2xl" : "max-w-md")}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" aria-label="Close dialog">
             <X className="h-4 w-4" />
           </button>
         </div>

@@ -119,7 +119,7 @@ export default function AssistantPage() {
                 <p className="truncate text-[13px] font-medium">{c.title}</p>
                 <p className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</p>
               </button>
-              <button onClick={() => deleteConv(c.id)} className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100" title="Delete">
+              <button onClick={() => deleteConv(c.id)} className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100" title="Delete conversation" aria-label={`Delete conversation ${c.title}`}>
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>

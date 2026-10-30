@@ -8,18 +8,18 @@
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: "Space Grotesk Variable", "Inter Variable", ui-sans-serif, sans-serif;
 
-  /* Electric blue — primary action color */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dbe7ff;
-  --color-brand-200: #bfd4ff;
-  --color-brand-300: #93b4ff;
-  --color-brand-400: #608dff;
-  --color-brand-500: #3a66ff;
-  --color-brand-600: #2549f0;
-  --color-brand-700: #1f39cc;
-  --color-brand-800: #2033a3;
-  --color-brand-900: #1f2f80;
-  --color-brand-950: #141d4d;
+  /* Violet — primary action color */
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
 
   /* Deep navy — surface color */
   --color-navy-50: #f4f6fb;
@@ -35,9 +35,9 @@
   --color-navy-950: #0a1120;
 
   /* Accent purple */
-  --color-accent-400: #a78bfa;
-  --color-accent-500: #8b5cf6;
-  --color-accent-600: #7c3aed;
+  --color-accent-400: #c4b5fd;
+  --color-accent-500: #a78bfa;
+  --color-accent-600: #8b5cf6;
 }
 
 html {
@@ -45,6 +45,7 @@ html {
 }
 
 body {
+  background: #ffffff;
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
 }
@@ -101,7 +102,7 @@ body {
 
 /* Landing grid backdrop */
 .bg-grid-navy {
-  background-image: linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(124, 58, 237, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 237, 0.045) 1px, transparent 1px);
   background-size: 44px 44px;
 }

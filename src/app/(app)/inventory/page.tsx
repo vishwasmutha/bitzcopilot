@@ -248,13 +248,13 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-1">
-                            <button onClick={() => openRestock(p)} title="Record restock" className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10">
+                            <button onClick={() => openRestock(p)} title="Record restock" aria-label={`Record restock for ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10">
                               <PackagePlus className="h-4 w-4" />
                             </button>
-                            <button onClick={() => loadHistory(p)} title="History" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                            <button onClick={() => loadHistory(p)} title="Stock history" aria-label={`View stock history for ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
                               <RefreshCcw className="h-4 w-4" />
                             </button>
-                            <button onClick={() => openEdit(p)} title="Edit" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                            <button onClick={() => openEdit(p)} title="Edit product" aria-label={`Edit ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
                               <Pencil className="h-4 w-4" />
                             </button>
                             <button

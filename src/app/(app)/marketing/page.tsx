@@ -195,7 +195,7 @@ export default function MarketingPage() {
                 <RotateCcw className="h-4 w-4" /> Generate
               </Button>
               {result && (
-                <Button variant="outline" onClick={() => generate(true)} loading={busy}>
+                <Button variant="outline" onClick={() => generate(true)} loading={busy} aria-label="Regenerate campaign content" title="Regenerate campaign content">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               )}
@@ -268,10 +268,10 @@ export default function MarketingPage() {
                       <Badge tone="neutral">{c.type}</Badge>
                       <p className="flex-1 truncate text-sm font-medium">{c.title}</p>
                       <span className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</span>
-                      <button onClick={() => copy(c.content, c.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" title="Copy">
+                      <button onClick={() => copy(c.content, c.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" title="Copy campaign" aria-label={`Copy campaign ${c.title}`}>
                         {copied === c.id ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                       </button>
-                      <button onClick={() => remove(c.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10" title="Delete">
+                      <button onClick={() => remove(c.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10" title="Delete campaign" aria-label={`Delete campaign ${c.title}`}>
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>

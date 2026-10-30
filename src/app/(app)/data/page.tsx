@@ -247,7 +247,7 @@ export default function DataPage() {
                   <p className="truncate text-sm font-medium">{file.name}</p>
                   <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(0)} KB · {rows ? `${rows.length} rows · ${headers.length} columns` : "parsing…"}</p>
                 </div>
-                <button onClick={reset} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Remove file">
+                <button onClick={reset} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Remove file" aria-label="Remove selected file">
                   <X className="h-4 w-4" />
                 </button>
               </div>
