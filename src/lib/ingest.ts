@@ -40,6 +40,7 @@ export const DATASET_FIELDS: Record<DatasetType, { key: string; label: string; r
     { key: "name", label: "Name", required: false, kind: "text" },
     { key: "email", label: "Email", required: false, kind: "text" },
     { key: "phone", label: "Phone", required: false, kind: "text" },
+    { key: "consent", label: "Marketing consent (yes/no)", required: false, kind: "text" },
   ],
 };
 
@@ -341,6 +342,8 @@ export async function importDataset(
       name: (r.name as string) ?? null,
       email: (r.email as string) ?? null,
       phone: (r.phone as string) ?? null,
+      // Consent is recorded only when the file says so explicitly. A blank means "not recorded", never "yes".
+      consent: typeof r.consent === "string" ? (/^(y|yes|true|1|opt[\s-]?in|consent(ed)?)$/i.test(r.consent.trim()) ? true : /^(n|no|false|0|opt[\s-]?out)$/i.test(r.consent.trim()) ? false : null) : null,
     }));
     const existing = await db.select().from(customersTable).where(eq(customersTable.businessId, businessId));
     const byRef = new Map(existing.map((c) => [c.refId, c]));
@@ -349,11 +352,17 @@ export async function importDataset(
       if (cur) {
         await db
           .update(customersTable)
-          .set({ name: r.name ?? cur.name, email: r.email ?? cur.email, phone: r.phone ?? cur.phone })
+          .set({
+            name: r.name ?? cur.name,
+            email: r.email ?? cur.email,
+            phone: r.phone ?? cur.phone,
+            ...(r.consent === true ? { marketingConsent: true, consentAt: new Date(), consentSource: `file: ${fileName}`.slice(0, 80) } : r.consent === false ? { marketingConsent: false, consentAt: null, consentSource: "withdrawn" } : {}),
+          })
           .where(eq(customersTable.id, cur.id));
         updated++;
       } else {
-        await db.insert(customersTable).values({ businessId, ...r, demo: isDemo });
+        const { consent, ...rest } = r;
+        await db.insert(customersTable).values({ businessId, ...rest, marketingConsent: consent === true, consentAt: consent === true ? new Date() : null, consentSource: consent === true ? `file: ${fileName}`.slice(0, 80) : null, demo: isDemo });
         created++;
       }
       imported++;

@@ -163,3 +163,50 @@ CREATE TABLE password_resets (
   used       BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+
+-- ---------------------------------------------------------------------------
+-- v2 additions. The authoritative definition is src/db/schema.ts (drizzle-kit push).
+-- ---------------------------------------------------------------------------
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS opening_cash DOUBLE PRECISION;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS opening_cash_on DATE;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS autopilot_level INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS autopilot_budget DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS lead_time_days INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS consent_at TIMESTAMPTZ;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS consent_source TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS impact_rs DOUBLE PRECISION;
+
+CREATE TABLE IF NOT EXISTS cash_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  kind TEXT NOT NULL, party TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL,
+  issued_on DATE NOT NULL, due_date DATE NOT NULL,
+  recurrence TEXT NOT NULL DEFAULT 'none', status TEXT NOT NULL DEFAULT 'open',
+  note TEXT, demo BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS promo_experiments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  campaign_id UUID REFERENCES marketing_campaigns(id),
+  title TEXT NOT NULL, segment TEXT NOT NULL, product_name TEXT,
+  holdout_pct INTEGER NOT NULL DEFAULT 20, window_days INTEGER NOT NULL DEFAULT 14,
+  started_on DATE NOT NULL, demo BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS promo_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  experiment_id UUID NOT NULL REFERENCES promo_experiments(id),
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  customer_ref TEXT NOT NULL, grp TEXT NOT NULL,
+  UNIQUE (experiment_id, customer_ref)
+);
+CREATE TABLE IF NOT EXISTS action_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  kind TEXT NOT NULL, title TEXT NOT NULL, detail TEXT, why TEXT,
+  level INTEGER NOT NULL, status TEXT NOT NULL, amount DOUBLE PRECISION, payload_json TEXT,
+  dedupe_key TEXT NOT NULL, demo BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), decided_at TIMESTAMPTZ,
+  UNIQUE (business_id, dedupe_key)
+);

@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a1120",
+  themeColor: "#ffffff",
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('bc-theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+const themeScript = `(function(){try{document.documentElement.classList.remove('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">{children}</body>
+      <body className="font-sans text-black antialiased">{children}</body>
     </html>
   );
 }

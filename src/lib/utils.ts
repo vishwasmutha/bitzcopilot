@@ -10,6 +10,9 @@ export const CATEGORY_OPTIONS = [
   "Other",
 ] as const;
 
+/** Services are not stocked: the demo and imports mark them with 999 on hand and no minimum. Stock logic skips them. */
+export const isUntracked = (stockQty: number, minStock: number): boolean => stockQty >= 999 && minStock === 0;
+
 export const LANG_OPTIONS = [
   { id: "kn", label: "ಕನ್ನಡ", speech: "kn-IN" },
   { id: "hi", label: "हिंदी", speech: "hi-IN" },

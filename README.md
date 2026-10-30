@@ -30,6 +30,11 @@ An AI-powered business intelligence and digital-transformation assistant for sma
 | **Customer analytics** | RFM segmentation (Loyal, High-value, Potential loyalist, At-risk, New, Active one-time, Declining, Inactive) with per-segment suggestions and top members |
 | **Alerts** | Rule-based, idempotently stored notifications: sales drops, out-of/low stock, demand surges, engagement decline, growth momentum; bell badge with unread count |
 | **Demo mode** | Seeded, realistic 120-day datasets (bakery / restaurant / grocery / retail packs) with clear demo flags, full isolation from real rows, one-click reset |
+| **Impact** | `/impact`: today's prioritized actions ranked by rupees at stake, a sales-drop detector against a same-weekday baseline that names the product and category, promotions tested against a held-back group, product offers measured before and after, a pilot scorecard. See [TECHSTACK.md](TECHSTACK.md) |
+| **Cash outlook** | `/cash`: 8-week cash projection from expected sales, credit owed to you, supplier dues and rent, with a low and a high case and a warning before cash runs short |
+| **Autopilot** | `/autopilot`: a three-level dial (suggest only, draft and wait, act within a weekly budget) and a log of every suggestion or action with the reason |
+| **Consent and privacy** | Consent register and segment builder on `/customers`. Nothing is drafted for sending to a customer who has not agreed. Phones, emails, UPI IDs and GSTINs are masked before a model sees any text. |
+| **Messy-data input** | Paste UPI or bank messages, say or type "sold 3 rice, 2 oil", or connect a Google Sheet, all from `/data` |
 
 ## Getting started
 
@@ -123,4 +128,4 @@ schema.sql      plain-SQL mirror of the schema
 
 ## Demo datasets
 
-Generated with a seeded PRNG (stable across loads): ~120 days of daily sales with weekly seasonality and per-product trend curves (incl. an intentionally declining product and a surging one), a product catalog with cost/price/stock (incl. low-stock and out-of-stock items), and ~46 customers spread across RFM behaviour profiles. All rows carry `demo=true`, are shown behind a "Demo data" badge, and are deleted by **Settings → Reset demo data** without touching real records.
+Generated with a seeded PRNG (stable across loads): ~120 days of daily sales with weekly seasonality and per-product trend curves (incl. an intentionally declining product and a surging one), a product catalog with cost/price/stock (incl. low-stock and out-of-stock items), and ~46 customers plus a cohort of lapsed regulars spread across RFM behaviour profiles. All rows carry `demo=true`, are shown behind a "Demo data" badge, and are deleted by **Settings → Reset demo data** without touching real records.

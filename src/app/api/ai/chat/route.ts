@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       businessId: session.business.id,
       role: "assistant",
       content: result.reply,
-      metaJson: JSON.stringify({ charts: result.charts }),
+      metaJson: JSON.stringify({ charts: result.charts, tools: result.tools }),
       engine: result.engine,
     });
 

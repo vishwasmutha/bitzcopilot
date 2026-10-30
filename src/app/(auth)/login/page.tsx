@@ -69,19 +69,19 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-10 dark:bg-slate-950">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <div className="mb-8 flex items-center gap-2.5">
-        <Logo className="h-8 w-8" />
-        <span className="font-display text-xl font-bold tracking-tight">BizCopilot</span>
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white p-2.5 shadow-sm"><Logo className="h-full w-full" /></span>
+        <span className="text-xl font-semibold tracking-tight">BizCopilot</span>
       </div>
-      <div className="bc-fade-up w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-7 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="bc-fade-up w-full max-w-sm rounded-3xl bg-white p-8 shadow-[0_30px_70px_-40px_rgba(0,0,0,0.4)]">
         <h1 className="font-display text-lg font-semibold">Sign in where you already are</h1>
         <p className="mt-1 text-sm text-slate-500">Option B is the WhatsApp number. That&apos;s the one shop owners actually use.</p>
-        <div className="mt-5 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-sm dark:bg-slate-800">
-          <button type="button" onClick={() => setMode("a")} className={"rounded-md px-2 py-2 font-medium " + (mode === "a" ? "bg-white shadow-sm dark:bg-slate-900" : "text-slate-500")}>
+        <div className="mt-5 grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1 text-sm">
+          <button type="button" onClick={() => setMode("a")} className={"rounded-full px-2 py-2 font-medium " + (mode === "a" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}>
             A · Email
           </button>
-          <button type="button" onClick={() => setMode("b")} className={"rounded-md px-2 py-2 font-medium " + (mode === "b" ? "bg-[#25D366] text-[#0b141a]" : "text-slate-500")}>
+          <button type="button" onClick={() => setMode("b")} className={"rounded-full px-2 py-2 font-medium " + (mode === "b" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}>
             B · WhatsApp
           </button>
         </div>
@@ -98,15 +98,15 @@ function LoginForm() {
           <Field label={mode === "b" ? "PIN" : "Password"}>
             <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === "b" ? "demo1234" : "••••••••"} />
           </Field>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
-          <Button type="submit" loading={busy} className={"w-full " + (mode === "b" ? "!bg-[#128C7E] hover:!bg-[#075E54]" : "")}>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
+          <Button type="submit" loading={busy} className={"w-full " + ""}>
             {mode === "b" ? "Open WhatsApp" : "Sign in"}
           </Button>
         </form>
         <button type="button" onClick={demo} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-600">
           Or open the Jayanagar demo shop in one tap
         </button>
-        <p className="mt-4 text-center text-[13px] text-slate-500">
+        <p className="mt-4 text-center text-sm text-slate-500">
           New shop?{" "}
           <Link href="/signup" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
             Create an account

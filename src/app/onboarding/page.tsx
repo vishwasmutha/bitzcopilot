@@ -96,7 +96,7 @@ export default function OnboardingPage() {
             </Field>
 
             <div>
-              <span className="mb-1.5 block text-[13px] font-medium text-slate-700 dark:text-slate-300">Business category</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Business category</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {CATEGORY_OPTIONS.map((c) => {
                   const Icon = CAT_ICONS[c] ?? Store;
@@ -107,7 +107,7 @@ export default function OnboardingPage() {
                       type="button"
                       onClick={() => setCategory(c)}
                       className={
-                        "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center text-[13px] font-medium transition-all " +
+                        "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center text-sm font-medium transition-all " +
                         (active
                           ? "border-brand-500 bg-brand-50 text-brand-700 ring-2 ring-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300"
                           : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800")
@@ -139,13 +139,13 @@ export default function OnboardingPage() {
 
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
               <input type="checkbox" checked={wantDemo} onChange={(e) => setWantDemo(e.target.checked)} className="mt-0.5 h-4 w-4 accent-amber-500" />
-              <span className="text-[13px] text-amber-800 dark:text-amber-300">
+              <span className="text-sm text-amber-800 dark:text-amber-300">
                 <strong>Load a realistic demo dataset</strong> (120 days of sales, products and customers for a {category.toLowerCase()}).
                 It&apos;s clearly labelled as demo data, fully separated from your own data, and can be reset any time in Settings.
               </span>
             </label>
 
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
+            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{error}</p>}
             <Button type="submit" size="lg" loading={busy} className="w-full">
               Open my dashboard
             </Button>

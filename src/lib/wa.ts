@@ -5,8 +5,18 @@ import { and, asc, eq } from "drizzle-orm";
 import { loadProducts, loadSales, getOverview, getProductPerformance } from "./analytics";
 import { simulateWhatIf, parseWhatIf } from "./whatif";
 import { addDays, fmtCurrency, todayISO, type Lang } from "./utils";
+import { maxSafeDiscount } from "./impact-math";
+import { describeCrunch, getCashOutlook } from "./cash";
 
 export type WaLang = Lang;
+
+/** The offer the owner wants, lowered if it would leave under 10% margin on this product. */
+export async function safeDiscount(businessId: string, product: string, wanted: number): Promise<number> {
+  const rows = await db.select().from(productsTable).where(and(eq(productsTable.businessId, businessId), eq(productsTable.name, product))).limit(1);
+  const p = rows[0];
+  if (!p || !(p.sellingPrice > 0)) return wanted;
+  return Math.min(wanted, maxSafeDiscount(p.sellingPrice, p.unitCost));
+}
 
 export function istDateISO(d = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -87,15 +97,21 @@ export function briefCopy(lang: WaLang, shop: string, item: Runway | null, downP
 
 export function promoCopy(lang: WaLang, shop: string, product: string, discount = 10): string {
   const item = shortName(product);
+  if (discount <= 0) {
+    if (lang === "hi") return `${shop}: ${item} आज स्टॉक में है। आइए, हम आपके लिए एक रख देंगे।`;
+    if (lang === "kn") return `${shop}: ${item} ಇಂದು ಸ್ಟಾಕ್‌ನಲ್ಲಿದೆ. ಬನ್ನಿ, ನಿಮಗಾಗಿ ಒಂದು ಇಟ್ಟುಕೊಳ್ಳುತ್ತೇವೆ.`;
+    return `${shop}: ${item} is in stock today. Come in and we'll keep one aside.`;
+  }
   if (lang === "hi") return `${shop}: आज ${item} पर ${discount}% छूट। स्टॉक खत्म होने से पहले आ जाइए। जवाब दें, हम रख देंगे।`;
   if (lang === "kn") return `${shop}: ಇಂದು ${item} ಮೇಲೆ ${discount}% ರಿಯಾಯಿತಿ. ಸ್ಟಾಕ್ ಮುಗಿಯುವ ಮುನ್ನ ಬನ್ನಿ. ಉತ್ತರಿಸಿ, ನಾವು ಇಟ್ಟುಕೊಳ್ಳುತ್ತೇವೆ.`;
   return `${shop}: ${discount}% off ${item} today. Come in before we run out. Reply and we'll keep one aside.`;
 }
 
-type Intent = "revenue" | "stock" | "decline" | "customers" | "promo" | "forecast" | "top" | "help";
+type Intent = "revenue" | "stock" | "decline" | "customers" | "promo" | "forecast" | "top" | "help" | "cash";
 
 export function detectWaIntent(q: string): Intent {
   const s = q.toLowerCase();
+  if (/\bcash\b|money|afford|नकद|पैसे|पैसा|ನಗದು|ಹಣ/.test(s)) return "cash";
   if (/restock|stock|run out|inventory|rice|अक्क|चावल|खत्म|स्टॉक|माल|ಅಕ್ಕಿ|ಸ್ಟಾಕ್|ಮುಗಿ|ಸರಕು/.test(s)) return "stock";
   if (/declin|why.*down|drop|गिरा|कम क्यों|क्यों.*कम|ಏಕೆ|ಇಳಿಕೆ|ಕಡಿಮೆ/.test(s)) return "decline";
   if (/customer|ग्राहक|कस्टमर|ಗ್ರಾಹಕ/.test(s)) return "customers";
@@ -122,8 +138,9 @@ export async function answerWa(businessId: string, shop: string, question: strin
   const tight = runway.find((r) => r.days <= 10) ?? runway[0] ?? null;
   const top = perf[0];
   const promoFor = tight && tight.days <= 14 ? tight.name : top?.name;
+  const promoOffer = promoFor ? await safeDiscount(businessId, promoFor, 10) : 0;
   const promo = promoFor
-    ? { title: `WhatsApp promo — ${shortName(promoFor)}`, content: promoCopy(lang, shop, promoFor, 10), product: promoFor }
+    ? { title: `WhatsApp promo — ${shortName(promoFor)}`, content: promoCopy(lang, shop, promoFor, promoOffer), product: promoFor }
     : null;
 
   if (!overview.hasData) {
@@ -151,6 +168,21 @@ export async function answerWa(businessId: string, shop: string, question: strin
     else if (lang === "hi") text = `*${shortName(tight.name)}* — स्टॉक ${tight.stock}, रोज़ ~${tight.daily} बिक रहा है, *${Math.max(1, Math.round(tight.days))} दिन* में खत्म। ${dipTxt}`;
     else if (lang === "kn") text = `*${shortName(tight.name)}* — ಸ್ಟಾಕ್ ${tight.stock}, ದಿನಕ್ಕೆ ~${tight.daily}, *${Math.max(1, Math.round(tight.days))} ದಿನ*ದಲ್ಲಿ ಮುಗಿಯುತ್ತದೆ. ${dipTxt}`;
     else text = `*${shortName(tight.name)}* — ${tight.stock} in stock, ~${tight.daily}/day, runs out in *${Math.max(1, Math.round(tight.days))} days*. ${dipTxt}`;
+  } else if (intent === "cash") {
+    const cash = await getCashOutlook(businessId);
+    const c = cash.projection.status === "ok" ? cash.projection.crunch : null;
+    if (cash.projection.status !== "ok") {
+      text = lang === "hi" ? "नकदी का अनुमान लगाने के लिए आज की नकद रकम Cash पेज पर डालें।" : lang === "kn" ? "ನಗದು ಅಂದಾಜಿಗೆ ಇಂದಿನ ನಗದು ಮೊತ್ತವನ್ನು Cash ಪುಟದಲ್ಲಿ ಹಾಕಿ." : `${cash.projection.why}`;
+    } else if (c) {
+      text =
+        lang === "hi"
+          ? `${c.date} के आसपास नकदी ${inr(c.shortfall)} तक कम पड़ सकती है (लगभग ${c.weeksAhead} हफ्ते बाद)। उधार वसूली और सप्लायर की तारीख देखें।`
+          : lang === "kn"
+            ? `${c.date} ಸುಮಾರಿಗೆ ನಗದು ${inr(c.shortfall)} ವರೆಗೆ ಕಡಿಮೆಯಾಗಬಹುದು (ಸುಮಾರು ${c.weeksAhead} ವಾರ). ಬಾಕಿ ವಸೂಲಿ ಮತ್ತು ಸಪ್ಲೈಯರ್ ದಿನಾಂಕ ನೋಡಿ.`
+            : `${describeCrunch(cash)} Chasing credit owed to you and moving a supplier due are the quickest fixes.`;
+    } else {
+      text = lang === "hi" ? "अगले 8 हफ्तों में नकदी की कमी नहीं दिखती।" : lang === "kn" ? "ಮುಂದಿನ 8 ವಾರಗಳಲ್ಲಿ ನಗದು ಕೊರತೆ ಕಾಣುತ್ತಿಲ್ಲ." : "No cash shortfall in the next 8 weeks on current numbers.";
+    }
   } else if (intent === "decline") {
     const g = overview.growthPct;
     if (lang === "hi") text = g != null && g < 0 ? `पिछले 30 दिन की कमाई ${inr(overview.revenue30)} है — पिछले 30 दिन से ${Math.abs(g).toFixed(0)}% कम। ${dipTxt}` : `गिरावट नहीं दिख रही। 30 दिन की कमाई ${inr(overview.revenue30)}। ${dipTxt}`;
@@ -222,10 +254,24 @@ export async function ensureMorningBrief(businessId: string, lang: WaLang) {
   const [runway, dip] = await Promise.all([stockRunway(businessId), weekdayDip(businessId)]);
   const tight = runway.find((r) => r.days < 900) ?? null;
   const focus = tight && tight.days <= 14 ? tight : runway[0] ?? null;
-  const body = briefCopy(lang, biz.name, focus && focus.days < 900 ? focus : null, dip.downPct);
+  // Three to five prioritized actions, in the owner's language. Loaded lazily to avoid an import cycle.
+  const [{ getTodayActions }, { runAutopilot }] = await Promise.all([import("./impact"), import("./autopilot")]);
+  await runAutopilot(businessId).catch((e) => console.error("autopilot run failed", e));
+  const actions = await getTodayActions(businessId, { lang, limit: 5 }).catch(() => []);
+  const head = briefCopy(lang, biz.name, focus && focus.days < 900 ? focus : null, dip.downPct);
+  const closing = head.split("\n\n").slice(-1)[0];
+  const body = actions.length
+    ? [
+        head.split("\n")[0],
+        ...actions.map((a, i) => `${i + 1}. ${a.title}${a.atStake != null ? ` — ${inr(a.atStake)}` : ""}`),
+        "",
+        closing,
+      ].join("\n")
+    : head;
   const product = focus && focus.days <= 21 ? focus.name : (await db.select().from(productsTable).where(eq(productsTable.businessId, businessId)).limit(1))[0]?.name;
+  const offer = product ? await safeDiscount(businessId, product, 10) : 0;
   const promo = product
-    ? { title: `9 AM promo — ${shortName(product)}`, content: promoCopy(lang, biz.name, product, 10), product, status: "draft" }
+    ? { title: `9 AM promo — ${shortName(product)}`, content: promoCopy(lang, biz.name, product, offer), product, status: "draft" }
     : null;
   const receipt = {
     title: "9:00 AM brief",
@@ -245,7 +291,7 @@ export async function ensureMorningBrief(businessId: string, lang: WaLang) {
       kind: "brief",
       body,
       lang,
-      metaJson: JSON.stringify({ date: today, promo, runway: focus, weekdayDownPct: dip.downPct, receipt }),
+      metaJson: JSON.stringify({ date: today, promo, runway: focus, weekdayDownPct: dip.downPct, receipt, actions }),
       createdAt: nineAmIst(today),
     })
     .returning();

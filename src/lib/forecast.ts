@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { forecastResults, products as productsTable } from "@/db/schema";
 import { loadSales } from "./analytics";
 import { addDays, lastNDays, todayISO } from "./utils";
+import { forecastConfidence } from "./engine-math";
 
 /* ------------------------------------------------------------------ */
 /* BizCopilot forecasting engine                                        */
@@ -36,6 +37,12 @@ export type ForecastOutput = {
   totalPredicted: number;
   trendPct: number | null;
   message: string | null;
+  /** Residual standard deviation of daily revenue, and the recent daily average. Used to size low and high cases elsewhere. */
+  sigma: number;
+  recentDaily: number;
+  confidence: { level: "high" | "medium" | "low" | "none"; reason: string };
+  /** Every model that was tried, scored on the same held-out days. */
+  candidates: { name: string; mae: number | null; chosen: boolean }[];
   backtest: {
     status: "computed" | "insufficient";
     holdoutDays: number;
@@ -151,6 +158,21 @@ function metrics(resid: number[], actuals: number[]) {
 
 const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Average of up to 4 earlier values on the same weekday as index `t`, using only indexes below `limit`. */
+function seasonalNaive(y: number[], t: number, limit: number): number {
+  const vals: number[] = [];
+  for (let k = 1; vals.length < 4; k++) {
+    const idx = t - 7 * k;
+    if (idx < 0) break;
+    if (idx < limit) vals.push(y[idx]);
+  }
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
 export async function generateForecast(businessId: string, horizon: number): Promise<ForecastOutput> {
   const today = todayISO();
   const historyDays = 182;
@@ -183,6 +205,10 @@ export async function generateForecast(businessId: string, horizon: number): Pro
       totalPredicted: 0,
       trendPct: null,
       message: msg,
+      sigma: 0,
+      recentDaily: 0,
+      confidence: { level: "none", reason: "Not enough history to forecast." },
+      candidates: [],
       backtest: {
         status: "insufficient",
         holdoutDays: 0,
@@ -222,6 +248,7 @@ export async function generateForecast(businessId: string, horizon: number): Pro
     avg: dowCnt[dow] ? Math.round((dowSum[dow] / dowCnt[dow]) * 100) / 100 : 0,
   }));
 
+  let candidates: ForecastOutput["candidates"] = [];
   let model = "Trend regression (OLS)";
   let modelNote = "";
   let histResid: number[] = [];
@@ -271,7 +298,17 @@ export async function generateForecast(businessId: string, horizon: number): Pro
 
     const naivePred = test.map((_, i) => y[train.length + i - 7] ?? 0);
     const naiveMet = metrics(test.map((v, i) => v - naivePred[i]), test);
-    const holdoutModelMae = bestHW && (hwMet.mae < oMet.mae || !o.coefs) ? hwMet.mae : oMet.mae;
+    // Seasonal-naive candidate: each day is the average of the last 4 same weekdays the model could see
+    const n4Pred = test.map((_, i) => seasonalNaive(y, train.length + i, train.length));
+    const n4Met = metrics(test.map((v, i) => v - n4Pred[i]), test);
+    const bestOther = Math.min(bestHW ? hwMet.mae : Infinity, o.coefs ? oMet.mae : Infinity);
+    const naiveWins = n4Met.mae < bestOther;
+    const holdoutModelMae = naiveWins ? n4Met.mae : bestHW && (hwMet.mae < oMet.mae || !o.coefs) ? hwMet.mae : oMet.mae;
+    candidates = [
+      { name: "Trend regression (OLS)", mae: o.coefs ? round2(oMet.mae) : null, chosen: false },
+      { name: "Holt-Winters (additive, weekly seasonality)", mae: bestHW ? round2(hwMet.mae) : null, chosen: false },
+      { name: "Seasonal naive (same weekday, last 4 weeks)", mae: round2(n4Met.mae), chosen: false },
+    ];
     const beatPct = naiveMet.mae > 1 ? ((naiveMet.mae - holdoutModelMae) / naiveMet.mae) * 100 : null;
     backtestComputed = {
       status: "computed",
@@ -288,7 +325,14 @@ export async function generateForecast(businessId: string, horizon: number): Pro
             : `On the last ${test.length} held-out days, this model did not beat the naive baseline (MAE was ${Math.abs(beatPct).toFixed(1)}% worse). The baseline is shown so the miss is visible.`,
     };
 
-    if (bestHW && (hwMet.mae < oMet.mae || !o.coefs)) {
+    if (naiveWins) {
+      model = "Seasonal naive (same weekday, last 4 weeks)";
+      modelNote = `Chosen on a ${test.length}-day holdout: MAE ${n4Met.mae.toFixed(0)} beat both the smoothing model and the trend model, so the simple method is used.`;
+      const n = y.length;
+      histResid = [];
+      for (let t = 28; t < n; t++) histResid.push(y[t] - seasonalNaive(y, t, t));
+      fc = (h: number) => seasonalNaive(y, n - 1 + h, n);
+    } else if (bestHW && (hwMet.mae < oMet.mae || !o.coefs)) {
       // Refit the winning smoothing combination on the full history
       const [wa, wb, wg] = hwCandidates[0].params;
       const win = hwFit(y, 7, wa, wb, wg) ?? bestHW;
@@ -342,6 +386,7 @@ export async function generateForecast(businessId: string, horizon: number): Pro
       predicted: fitArr[startIdx + i] != null ? Math.round((fitArr[startIdx + i] as number) * 100) / 100 : undefined,
     }));
 
+  candidates = candidates.map((c) => ({ ...c, chosen: c.name === model }));
   const forecast: ForecastPoint[] = [];
   for (let h = 1; h <= horizon; h++) {
     const p = fc(h);
@@ -421,6 +466,10 @@ export async function generateForecast(businessId: string, horizon: number): Pro
     trendPct,
     message: null,
     backtest: backtestComputed,
+    sigma: Math.round(sigma * 100) / 100,
+    recentDaily: Math.round(last14 * 100) / 100,
+    confidence: forecastConfidence({ status: limited ? "limited" : "ok", spanDays, beatPct: backtestComputed.beatPct, mape: met.mape }),
+    candidates,
   };
 
   await db.insert(forecastResults).values({

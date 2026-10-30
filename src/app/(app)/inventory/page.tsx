@@ -142,7 +142,6 @@ export default function InventoryPage() {
 
   return (
     <div className="bc-fade-up">
-      <PurchasePlan />
       <PageHeader
         title="Smart Inventory"
         desc="Stock health combined with your recent demand and forecast — reorder quantities are computed, not guessed."
@@ -159,7 +158,7 @@ export default function InventoryPage() {
       />
 
       {summary && (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mb-8 grid grid-cols-2 gap-5 lg:grid-cols-5">
           {[
             { label: "Out of stock", value: summary.outOfStock, tone: "text-red-600 dark:text-red-400" },
             { label: "Low stock", value: summary.low, tone: "text-amber-600 dark:text-amber-400" },
@@ -167,13 +166,16 @@ export default function InventoryPage() {
             { label: "Slow movers", value: summary.slowMoving, tone: "text-slate-600 dark:text-slate-300" },
             { label: "Reorder value", value: fmtCurrency(summary.reorderValue, true), tone: "text-slate-900 dark:text-white" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-400">{s.label}</p>
-              <p className={"font-display mt-1 text-xl font-bold " + s.tone}>{s.value}</p>
+            <div key={s.label} className="rounded-3xl bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_30px_-18px_rgba(0,0,0,0.18)]">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
+              <p className={"font-display mt-2 text-2xl font-bold " + s.tone}>{s.value}</p>
             </div>
           ))}
         </div>
       )}
+      <div className="mb-8">
+        <PurchasePlan />
+      </div>
 
       <div className="mb-4 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900 w-fit">
         {(["recs", "all", "history"] as const).map((t) => (
@@ -181,7 +183,7 @@ export default function InventoryPage() {
             key={t}
             onClick={() => setTab(t)}
             className={
-              "rounded-md px-4 py-1.5 text-[13px] font-medium capitalize transition-colors " +
+              "rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors " +
               (tab === t ? "bg-brand-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800")
             }
           >
@@ -205,7 +207,7 @@ export default function InventoryPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13px]">
+              <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs text-slate-400 dark:border-slate-800">
                     <th className="px-5 py-3 font-medium">Product</th>
@@ -248,13 +250,13 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-1">
-                            <button onClick={() => openRestock(p)} title="Record restock" className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10">
+                            <button onClick={() => openRestock(p)} title="Record restock" aria-label={`Record restock for ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-500/10">
                               <PackagePlus className="h-4 w-4" />
                             </button>
-                            <button onClick={() => loadHistory(p)} title="History" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                            <button onClick={() => loadHistory(p)} title="Stock history" aria-label={`View stock history for ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
                               <RefreshCcw className="h-4 w-4" />
                             </button>
-                            <button onClick={() => openEdit(p)} title="Edit" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                            <button onClick={() => openEdit(p)} title="Edit product" aria-label={`Edit ${p.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
                               <Pencil className="h-4 w-4" />
                             </button>
                             <button
@@ -296,7 +298,7 @@ export default function InventoryPage() {
                     {h.qtyChange >= 0 ? "+" : ""}
                     {h.qtyChange}
                   </span>
-                  <span className="flex-1 truncate text-[13px] text-slate-500">{h.note ?? ""}</span>
+                  <span className="flex-1 truncate text-sm text-slate-500">{h.note ?? ""}</span>
                   <span className="text-xs text-slate-400">{new Date(h.createdAt).toLocaleString()}</span>
                 </div>
               ))}
@@ -343,7 +345,7 @@ export default function InventoryPage() {
       {modal === "restock" && target && (
         <Modal open onClose={() => setModal(null)} title={`Restock ${target.name}`}>
           <div className="space-y-4">
-            <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-[13px] text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
               Current stock {target.stockQty} · forecast {fmtNumber(target.predictedWeekly)}/week · suggested order{" "}
               <strong className="text-brand-600 dark:text-brand-400">+{target.suggested}</strong>
             </p>

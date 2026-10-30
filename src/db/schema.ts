@@ -36,6 +36,11 @@ export const businesses = pgTable("businesses", {
   phone: text("phone"),
   language: text("language").notNull().default("en"),
   cashBudget: doublePrecision("cash_budget"),
+  openingCash: doublePrecision("opening_cash"),
+  openingCashOn: date("opening_cash_on", { mode: "string" }),
+  // Autopilot dial: 1 = suggest only, 2 = draft and wait for approval, 3 = act within a weekly budget
+  autopilotLevel: integer("autopilot_level").notNull().default(2),
+  autopilotBudget: doublePrecision("autopilot_budget").notNull().default(0),
   upiId: text("upi_id"),
   gstin: text("gstin"),
   isDemo: boolean("is_demo").notNull().default(false),
@@ -55,6 +60,7 @@ export const products = pgTable(
     stockQty: integer("stock_qty").notNull().default(0),
     minStock: integer("min_stock").notNull().default(0),
     moq: integer("moq").notNull().default(1),
+    leadTimeDays: integer("lead_time_days").notNull().default(3),
     gstRate: doublePrecision("gst_rate").notNull().default(0),
     lastRestockedAt: timestamp("last_restocked_at", { withTimezone: true }),
     demo: boolean("demo").notNull().default(false),
@@ -100,6 +106,10 @@ export const customers = pgTable(
     lastPurchaseAt: date("last_purchase_at", { mode: "string" }),
     totalSpent: doublePrecision("total_spent").notNull().default(0),
     orderCount: integer("order_count").notNull().default(0),
+    // Marketing consent. Nothing is drafted for sending to a customer who has not opted in.
+    marketingConsent: boolean("marketing_consent").notNull().default(false),
+    consentAt: timestamp("consent_at", { withTimezone: true }),
+    consentSource: text("consent_source"),
     demo: boolean("demo").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -213,6 +223,7 @@ export const notifications = pgTable(
     title: text("title").notNull(),
     message: text("message").notNull(),
     dedupeKey: text("dedupe_key").notNull(),
+    impactRs: doublePrecision("impact_rs"),
     read: boolean("read").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -245,3 +256,85 @@ export const passwordResets = pgTable("password_resets", {
   used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Cash-flow guardian: money owed to the shop, bills, rent              */
+/* ------------------------------------------------------------------ */
+
+export const cashItems = pgTable(
+  "cash_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    kind: text("kind").notNull(), // receivable (customer credit) | payable (supplier due) | recurring (rent, salaries)
+    party: text("party").notNull(),
+    amount: doublePrecision("amount").notNull(),
+    issuedOn: date("issued_on", { mode: "string" }).notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    recurrence: text("recurrence").notNull().default("none"), // none | weekly | monthly
+    status: text("status").notNull().default("open"), // open | settled
+    note: text("note"),
+    demo: boolean("demo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cash_items_business_idx").on(t.businessId, t.status)]
+);
+
+/* ------------------------------------------------------------------ */
+/* Promotion experiments with a held-out control group                   */
+/* ------------------------------------------------------------------ */
+
+export const promoExperiments = pgTable(
+  "promo_experiments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    campaignId: uuid("campaign_id").references(() => marketingCampaigns.id),
+    title: text("title").notNull(),
+    segment: text("segment").notNull(),
+    productName: text("product_name"),
+    holdoutPct: integer("holdout_pct").notNull().default(20),
+    windowDays: integer("window_days").notNull().default(14),
+    startedOn: date("started_on", { mode: "string" }).notNull(),
+    demo: boolean("demo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("experiments_business_idx").on(t.businessId)]
+);
+
+export const promoAssignments = pgTable(
+  "promo_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    experimentId: uuid("experiment_id").notNull().references(() => promoExperiments.id),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    customerRef: text("customer_ref").notNull(),
+    grp: text("grp").notNull(), // treatment | holdout
+  },
+  (t) => [index("assign_experiment_idx").on(t.experimentId), unique("assign_unique").on(t.experimentId, t.customerRef)]
+);
+
+/* ------------------------------------------------------------------ */
+/* Autopilot: every suggestion or action the system takes, and why       */
+/* ------------------------------------------------------------------ */
+
+export const actionLog = pgTable(
+  "action_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id").notNull().references(() => businesses.id),
+    kind: text("kind").notNull(), // purchase_order | promo_draft | winback_draft | cash_warning | suggestion
+    title: text("title").notNull(),
+    detail: text("detail"),
+    why: text("why"),
+    level: integer("level").notNull(), // dial level in force when this was logged
+    status: text("status").notNull(), // suggested | drafted | auto_approved | approved | received | dismissed
+    amount: doublePrecision("amount"),
+    payloadJson: text("payload_json"),
+    dedupeKey: text("dedupe_key").notNull(),
+    demo: boolean("demo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("action_log_business_idx").on(t.businessId, t.createdAt), unique("action_log_dedupe_uq").on(t.businessId, t.dedupeKey)]
+);

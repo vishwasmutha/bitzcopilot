@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Download, FileSpreadsheet, History, UploadCloud, X } from "lucide-react";
 import { Badge, Button, Card, EmptyState, PageHeader, Select, Spinner, useToast } from "@/components/ui";
 import { shortDate } from "@/lib/utils";
+import { UpiImport } from "@/components/upi-import";
+import { QuickSale } from "@/components/quick-sale";
+import { ConnectorsCard } from "@/components/connectors-card";
 
 type DatasetType = "sales" | "products" | "inventory" | "customers";
 
@@ -11,7 +14,7 @@ const TYPES: { key: DatasetType; label: string; desc: string }[] = [
   { key: "sales", label: "Sales data", desc: "Date, product, quantity, price, customer" },
   { key: "products", label: "Product data", desc: "Name, category, cost, price, min stock" },
   { key: "inventory", label: "Inventory data", desc: "Stock levels per product" },
-  { key: "customers", label: "Customer data", desc: "ID, name, email, phone" },
+  { key: "customers", label: "Customer data", desc: "ID, name, phone, consent" },
 ];
 
 const FIELDS: Record<DatasetType, { key: string; label: string; required: boolean }[]> = {
@@ -42,6 +45,7 @@ const FIELDS: Record<DatasetType, { key: string; label: string; required: boolea
     { key: "name", label: "Name", required: false },
     { key: "email", label: "Email", required: false },
     { key: "phone", label: "Phone", required: false },
+    { key: "consent", label: "Marketing consent (yes/no)", required: false },
   ],
 };
 
@@ -73,6 +77,7 @@ const AUTO_MAP: Record<DatasetType, Record<string, RegExp>> = {
     name: /(name|customer|full\s*name)/i,
     email: /email/i,
     phone: /(phone|mobile|contact|tel)/i,
+    consent: /(consent|opt[\s_-]?in|marketing|whatsapp\s*ok)/i,
   },
 };
 
@@ -90,6 +95,7 @@ export default function DataPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [history, setHistory] = useState<Upload[] | null>(null);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -204,8 +210,8 @@ export default function DataPage() {
                       : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800")
                   }
                 >
-                  <p className={"text-[13px] font-semibold " + (type === t.key ? "text-brand-700 dark:text-brand-300" : "text-slate-700 dark:text-slate-200")}>{t.label}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-slate-400">{t.desc}</p>
+                  <p className={"text-sm font-semibold " + (type === t.key ? "text-brand-700 dark:text-brand-300" : "text-slate-700 dark:text-slate-200")}>{t.label}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-slate-400">{t.desc}</p>
                 </button>
               ))}
             </div>
@@ -247,14 +253,16 @@ export default function DataPage() {
                   <p className="truncate text-sm font-medium">{file.name}</p>
                   <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(0)} KB · {rows ? `${rows.length} rows · ${headers.length} columns` : "parsing…"}</p>
                 </div>
-                <button onClick={reset} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Remove file">
+                <button onClick={reset} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Remove file" aria-label="Remove selected file">
                   <X className="h-4 w-4" />
                 </button>
               </div>
             )}
             {parsing && <Spinner label="Reading file…" />}
-            {parseError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-500/10 dark:text-red-400">{parseError}</p>}
+            {parseError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">{parseError}</p>}
           </Card>
+
+          <ConnectorsCard onFile={handleFile} />
 
           {/* Step 3: mapping + preview */}
           {rows && headers.length > 0 && (
@@ -316,6 +324,8 @@ export default function DataPage() {
               </div>
             </Card>
           )}
+          <UpiImport onDone={loadHistory} />
+          <QuickSale onDone={loadHistory} />
         </div>
 
         {/* History */}
@@ -328,11 +338,11 @@ export default function DataPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {history.map((h) => (
+              {(showAllHistory ? history : history.slice(0, 6)).map((h) => (
                 <div key={h.id} className="flex items-center gap-3 px-5 py-3.5">
                   <FileSpreadsheet className="h-7 w-7 shrink-0 text-slate-300 dark:text-slate-600" />
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 truncate text-[13px] font-medium">
+                    <p className="flex items-center gap-2 truncate text-sm font-medium">
                       {h.fileName}
                       {h.isDemo && <Badge tone="warning">Demo</Badge>}
                     </p>
@@ -346,6 +356,13 @@ export default function DataPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {history !== null && history.length > 6 && (
+            <div className="border-t border-slate-100 px-5 py-3 text-center">
+              <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-sm font-semibold text-brand-600 hover:underline">
+                {showAllHistory ? "Show fewer" : `Show all ${history.length} imports`}
+              </button>
             </div>
           )}
         </Card>

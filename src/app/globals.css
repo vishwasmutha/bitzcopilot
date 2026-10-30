@@ -1,69 +1,131 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/dm-sans";
+@import "@fontsource-variable/bricolage-grotesque";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: "Space Grotesk Variable", "Inter Variable", ui-sans-serif, sans-serif;
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
 
-  /* Electric blue — primary action color */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dbe7ff;
-  --color-brand-200: #bfd4ff;
-  --color-brand-300: #93b4ff;
-  --color-brand-400: #608dff;
-  --color-brand-500: #3a66ff;
-  --color-brand-600: #2549f0;
-  --color-brand-700: #1f39cc;
-  --color-brand-800: #2033a3;
-  --color-brand-900: #1f2f80;
-  --color-brand-950: #141d4d;
+  /* Brand: a confident orange, plus soft tints for hover and highlight fills */
+  --color-brand-50: #fff3ec;
+  --color-brand-100: #ffe3d2;
+  --color-brand-200: #ffc7a6;
+  --color-brand-300: #ff9f6b;
+  --color-brand-400: #fb7a3a;
+  --color-brand-500: #f4560f;
+  --color-brand-600: #ea4c0a;
+  --color-brand-700: #c63e07;
+  --color-brand-800: #9c3209;
+  --color-brand-900: #7b2a0c;
+  --color-brand-950: #431305;
 
-  /* Deep navy — surface color */
-  --color-navy-50: #f4f6fb;
-  --color-navy-100: #e7ebf4;
-  --color-navy-200: #c9d2e5;
-  --color-navy-300: #a0afe0;
-  --color-navy-400: #7188c5;
-  --color-navy-500: #4f69ab;
-  --color-navy-600: #3d5290;
-  --color-navy-700: #324375;
-  --color-navy-800: #1c2949;
-  --color-navy-900: #101a31;
-  --color-navy-950: #0a1120;
+  /* Warm dark brown for feature panels (the "Owes" card), greys for the rest */
+  --color-navy-50: #f7f5f3;
+  --color-navy-100: #eeebe7;
+  --color-navy-200: #dfdad3;
+  --color-navy-300: #c6beb3;
+  --color-navy-400: #a0978a;
+  --color-navy-500: #7b7266;
+  --color-navy-600: #5d5449;
+  --color-navy-700: #4a3a2c;
+  --color-navy-800: #3f2c1d;
+  --color-navy-900: #3a2415;
+  --color-navy-950: #26160b;
 
-  /* Accent purple */
-  --color-accent-400: #a78bfa;
-  --color-accent-500: #8b5cf6;
-  --color-accent-600: #7c3aed;
+  /* Soft neutral greys */
+  --color-slate-50: #f8f8f8;
+  --color-slate-100: #f1f1f1;
+  --color-slate-200: #e7e7e7;
+  --color-slate-300: #d5d5d5;
+  --color-slate-400: #5e5e5e;
+  --color-slate-500: #404040;
+  --color-slate-600: #2b2b2b;
+  --color-slate-700: #1f1f1f;
+  --color-slate-800: #141414;
+  --color-slate-900: #111111;
+  --color-slate-950: #0a0a0a;
+
+  /* Type scale: nothing smaller than 13px, generous line height */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5rem;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.7rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 1.875rem;
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2.375rem;
+  --text-3xl--line-height: 2.6rem;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 1.1;
+
+  /* Generous rounded corners */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+
+  --color-accent-400: #fb7a3a;
+  --color-accent-500: #f4560f;
+  --color-accent-600: #c63e07;
 }
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
 }
 
 body {
+  background: #cfcfcf;
+  color: #0b0b0b;
   font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Slim scrollbars */
+/* Headings and big numbers use the display face; body copy stays in the text face */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+.font-display {
+  font-variant-numeric: lining-nums;
+}
+
+::selection {
+  background: #f4560f;
+  color: #ffffff;
+}
+
+/* Quiet scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.35);
+  background: rgba(0, 0, 0, 0.22);
   border-radius: 8px;
 }
 
-/* Subtle entrance animations */
+/* Entrance animations */
 @keyframes bc-fade-up {
   from {
     opacity: 0;
@@ -93,15 +155,19 @@ body {
 
 /* Recharts polish */
 .recharts-default-tooltip {
-  border-radius: 10px !important;
+  border-radius: 14px !important;
 }
 .recharts-cartesian-grid line {
-  stroke-opacity: 0.5;
+  stroke-opacity: 0.6;
 }
 
-/* Landing grid backdrop */
 .bg-grid-navy {
-  background-image: linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(17, 17, 17, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(17, 17, 17, 0.05) 1px, transparent 1px);
   background-size: 44px 44px;
+}
+
+/* Hairlines on cards stay barely there */
+[class*="border-slate-200"],
+[class*="border-slate-300"] {
+  border-color: #ececec;
 }

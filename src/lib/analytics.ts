@@ -8,6 +8,8 @@ import {
 } from "@/db/schema";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { addDays, fmtCurrency, previousMonthRange, startOfMonthISO, todayISO } from "./utils";
+import { explainDrop } from "./impact-math";
+import { rankAndCap } from "./engine-math";
 
 type SalesRow = {
   saleDate: string;
@@ -622,56 +624,77 @@ export type NotifDraft = {
   title: string;
   message: string;
   dedupeKey: string;
+  /** Estimated rupees at stake. Alerts are ranked by this and capped per week to avoid alert fatigue. */
+  impactRs: number | null;
 };
+
+/** At most this many new alerts a week. The ones with the most rupees at stake win. */
+export const WEEKLY_ALERT_CAP = 5;
 
 export async function computeAlerts(businessId: string): Promise<NotifDraft[]> {
   const drafts: NotifDraft[] = [];
   const today = todayISO();
-  const [products, perf] = await Promise.all([loadProducts(businessId), getProductPerformance(businessId, 28)]);
+  const week = `${today.slice(0, 8)}${Math.floor(Number(today.slice(8)) / 7)}`;
+  const [products, perf, sales8w] = await Promise.all([loadProducts(businessId), getProductPerformance(businessId, 28), loadSales(businessId, addDays(today, -7 * 8 - 7))]);
+
+  // Units per day over the last 14 days, to price what an empty shelf costs
+  const since14 = addDays(today, -13);
+  const units = new Map<string, number>();
+  for (const s of sales8w) if (s.saleDate >= since14) units.set(s.productName, (units.get(s.productName) ?? 0) + s.quantity);
+  const dailyOf = (name: string) => (units.get(name) ?? 0) / 14;
 
   const outOfStock = products.filter((p) => p.stockQty <= 0);
-  for (const p of outOfStock.slice(0, 5))
+  for (const p of outOfStock)
     drafts.push({
       type: "out_of_stock",
       severity: "critical",
       title: "Out of stock",
       message: `${p.name} has no stock left. Every sale of this item is currently lost revenue.`,
       dedupeKey: `out_of_stock:${p.name}:${today}`,
+      impactRs: Math.round(dailyOf(p.name) * p.sellingPrice * 7),
     });
 
   const low = products.filter((p) => p.stockQty > 0 && p.stockQty <= Math.max(p.minStock, 1));
-  for (const p of low.slice(0, 5))
+  for (const p of low) {
+    const d = dailyOf(p.name);
+    const emptyDays = d > 0 ? Math.max(0, 7 - p.stockQty / d) : 0;
     drafts.push({
       type: "low_stock",
       severity: "warning",
       title: "Low stock",
       message: `${p.name} is down to ${p.stockQty} units (minimum level ${p.minStock}). Consider reordering.`,
-      dedupeKey: `low_stock:${p.name}:${today.slice(0, 8)}${Math.floor(Number(today.slice(8)) / 7)}`,
+      dedupeKey: `low_stock:${p.name}:${week}`,
+      impactRs: Math.round(d * p.sellingPrice * emptyDays),
     });
+  }
 
-  // Week-over-week sales drop
-  const [w1, w2] = await Promise.all([
-    loadSales(businessId, addDays(today, -6), today),
-    loadSales(businessId, addDays(today, -13), addDays(today, -7)),
-  ]);
-  const w1Rev = w1.reduce((a, s) => a + s.totalAmount, 0);
-  const w2Rev = w2.reduce((a, s) => a + s.totalAmount, 0);
-  if (w2Rev > 50 && w1Rev < w2Rev * 0.7)
+  // Sales drop: this week against the same 7-day window in each of the last 4 to 8 weeks
+  const cat = new Map(products.map((p) => [p.name, p.category ?? "Other"]));
+  const drop = explainDrop(
+    sales8w.map((s) => ({ date: s.saleDate, product: s.productName, category: cat.get(s.productName) ?? "Other", revenue: s.totalAmount })),
+    today
+  );
+  if (drop.status === "ok" && drop.dropDetected) {
+    const top = drop.drivers[0];
+    const topCat = drop.categories[0];
     drafts.push({
       type: "sales_drop",
       severity: "warning",
       title: "Sales drop detected",
-      message: `This week's sales are ${(((w2Rev - w1Rev) / w2Rev) * 100).toFixed(0)}% below last week. Ask BizCopilot "Why have my sales declined?" for a breakdown.`,
-      dedupeKey: `sales_drop:week:${today.slice(0, 8)}${Math.floor(Number(today.slice(8)) / 7)}`,
+      message: `This week's sales are ${Math.abs(drop.pct ?? 0).toFixed(0)}% below a normal week (${fmtCurrency(drop.currentWeek)} against ${fmtCurrency(drop.baseline)}, ${Math.abs(drop.zScore ?? 0).toFixed(1)} standard deviations under).${top ? ` ${top.product} explains ${Math.round(top.share)}% of the gap` : ""}${topCat ? `, mostly in ${topCat.category}` : ""}.`,
+      dedupeKey: `sales_drop:week:${week}`,
+      impactRs: Math.round(Math.abs(drop.delta)),
     });
-  else if (w2Rev > 50 && w1Rev > w2Rev * 1.3)
+  } else if (drop.status === "ok" && drop.growthDetected) {
     drafts.push({
       type: "sales_growth",
       severity: "positive",
       title: "Sales momentum",
-      message: `This week's sales are ${(((w1Rev - w2Rev) / w2Rev) * 100).toFixed(0)}% ahead of last week. Keep the momentum — stock up on best-sellers.`,
-      dedupeKey: `sales_growth:week:${today.slice(0, 8)}${Math.floor(Number(today.slice(8)) / 7)}`,
+      message: `This week's sales are ${(drop.pct ?? 0).toFixed(0)}% above a normal week${drop.drivers[0] ? `, led by ${drop.drivers[0].product}` : ""}. Keep the momentum and stock up on best-sellers.`,
+      dedupeKey: `sales_growth:week:${week}`,
+      impactRs: null,
     });
+  }
 
   // Demand surge per product
   const surge = perf.filter((p) => p.changePct != null && p.prev14 >= 25 && p.changePct > 40);
@@ -681,7 +704,8 @@ export async function computeAlerts(businessId: string): Promise<NotifDraft[]> {
       severity: "info",
       title: "Demand increasing",
       message: `${p.name} is selling ${p.changePct!.toFixed(0)}% faster than the prior two weeks. The AI inventory plan will factor this in.`,
-      dedupeKey: `demand_surge:${p.name}:${today.slice(0, 8)}${Math.floor(Number(today.slice(8)) / 7)}`,
+      dedupeKey: `demand_surge:${p.name}:${week}`,
+      impactRs: null,
     });
 
   // Customer engagement
@@ -693,27 +717,27 @@ export async function computeAlerts(businessId: string): Promise<NotifDraft[]> {
       title: "Customer engagement falling",
       message: `Fewer than 3 of your ${overview.totalCustomers} customers purchased in the last 30 days. A win-back campaign may help.`,
       dedupeKey: `customer_decline:month:${today.slice(0, 7)}`,
+      impactRs: null,
     });
 
   return drafts;
 }
 
-/** Inserts alerts that don't exist yet (idempotent per dedupe key). */
+/**
+ * Inserts alerts that do not exist yet for this business. New alerts are ranked by
+ * rupees at stake and only the top few per week are kept, so the owner is not flooded.
+ */
 export async function syncNotifications(businessId: string): Promise<number> {
   const drafts = await computeAlerts(businessId);
-  let added = 0;
-  for (const d of drafts) {
-    const exists = await db
-      .select({ id: notifications.id })
-      .from(notifications)
-      .where(eq(notifications.dedupeKey, d.dedupeKey))
-      .limit(1);
-    if (exists.length === 0) {
-      await db.insert(notifications).values({ businessId, ...d });
-      added++;
-    }
-  }
-  return added;
+  if (!drafts.length) return 0;
+  const existing = await db.select({ key: notifications.dedupeKey, at: notifications.createdAt }).from(notifications).where(eq(notifications.businessId, businessId));
+  const have = new Set(existing.map((e) => e.key));
+  const weekAgo = Date.now() - 7 * 86400000;
+  const thisWeek = existing.filter((e) => e.at.getTime() >= weekAgo).length;
+  const fresh = drafts.filter((d) => !have.has(d.dedupeKey));
+  const { keep } = rankAndCap(fresh, thisWeek, WEEKLY_ALERT_CAP);
+  for (const d of keep) await db.insert(notifications).values({ businessId, ...d });
+  return keep.length;
 }
 
 export async function getNotifications(businessId: string) {

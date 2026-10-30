@@ -2,16 +2,21 @@ import "server-only";
 import { db } from "@/db";
 import {
   businesses,
+  cashItems,
   customers as customersTable,
+  marketingCampaigns,
+  promoAssignments,
+  promoExperiments,
   products as productsTable,
   sales as salesTable,
   uploadedFiles,
   users,
 } from "@/db/schema";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, like } from "drizzle-orm";
 import { hashPassword, setSession } from "./auth";
 import { refreshCustomerAggregates } from "./analytics";
 import { addDays, mulberry32, todayISO } from "./utils";
+import { assignHoldout } from "./engine-math";
 
 /* ------------------------------------------------------------------ */
 /* Realistic demo datasets (bakery / restaurant / grocery / retail).    */
@@ -39,6 +44,7 @@ const PACKS: Record<string, DemoProduct[]> = {
     { name: "Bananas 1kg", category: "Produce", cost: 30, price: 55, stock: 14, min: 8, trend: 1, weight: 5 },
     { name: "Surf Excel 1kg", category: "Household", cost: 140, price: 195, stock: 4, min: 4, trend: 0.7, weight: 3 },
     { name: "Colgate 200g", category: "Household", cost: 70, price: 105, stock: 12, min: 6, trend: 1, weight: 4 },
+    { name: "Imported Olive Oil 500ml", category: "Staples", cost: 480, price: 650, stock: 24, min: 4, trend: 1, weight: 0 },
   ],
   Salon: [
     { name: "Haircut", category: "Services", cost: 40, price: 250, stock: 40, min: 4, trend: 1, weight: 12 },
@@ -160,6 +166,12 @@ function seedFrom(s: string): number {
   return h >>> 0;
 }
 
+function pickPromoProduct(pack: DemoProduct[]): DemoProduct {
+  const pool = pack.filter((p) => !/oil|rice/i.test(p.name));
+  const real = pool.filter((p) => p.price >= 100);
+  return [...(real.length ? real : pool)].sort((a, b) => b.weight - a.weight)[0] ?? pack[0];
+}
+
 export type DemoCounts = { products: number; sales: number; customers: number };
 
 /** Wipes any previous demo rows for this business, then loads a fresh set. */
@@ -179,6 +191,10 @@ export async function loadDemoData(businessId: string, category: string): Promis
   await db.delete(salesTable).where(and(eq(salesTable.businessId, businessId), eq(salesTable.demo, true)));
   await db.delete(customersTable).where(and(eq(customersTable.businessId, businessId), eq(customersTable.demo, true)));
   await db.delete(uploadedFiles).where(and(eq(uploadedFiles.businessId, businessId), eq(uploadedFiles.isDemo, true)));
+  await db.delete(promoAssignments).where(and(eq(promoAssignments.businessId, businessId), inArray(promoAssignments.experimentId, db.select({ id: promoExperiments.id }).from(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true))))));
+  await db.delete(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true)));
+  await db.delete(cashItems).where(and(eq(cashItems.businessId, businessId), eq(cashItems.demo, true)));
+  await db.delete(marketingCampaigns).where(and(eq(marketingCampaigns.businessId, businessId), like(marketingCampaigns.inputsJson, '%"demo":true%')));
 
   // ---- products ----
   const prodRows = pack.map((p) => ({
@@ -190,6 +206,7 @@ export async function loadDemoData(businessId: string, category: string): Promis
     stockQty: p.stock,
     minStock: p.min,
     moq: /rice/i.test(p.name) ? 10 : /oil/i.test(p.name) ? 6 : /atta/i.test(p.name) ? 5 : /milk/i.test(p.name) ? 12 : 4,
+    leadTimeDays: /rice/i.test(p.name) ? 4 : /oil|atta|dal/i.test(p.name) ? 3 : 2 + (seedFrom(p.name) % 3),
     gstRate: /milk|banana|onion|tomato|egg/i.test(p.name) ? 0 : /maggi|parle|colgate|surf/i.test(p.name) ? 18 : 5,
     demo: true,
   }));
@@ -197,7 +214,7 @@ export async function loadDemoData(businessId: string, category: string): Promis
 
   // ---- customers with behaviour profiles ----
   const nCust = 46;
-  type Profile = { refId: string; name: string; kind: "loyal" | "high_value" | "new" | "at_risk" | "one_time" | "inactive" };
+  type Profile = { refId: string; name: string; kind: "loyal" | "high_value" | "new" | "at_risk" | "one_time" | "inactive" | "lapsed" };
   const custs: Profile[] = [];
   for (let i = 0; i < nCust; i++) {
     const r = rand();
@@ -212,7 +229,33 @@ export async function loadDemoData(businessId: string, category: string): Promis
       kind,
     });
   }
-  await db.insert(customersTable).values(custs.map((c) => ({ businessId, refId: c.refId, name: c.name, demo: true })));
+  // Regulars who drifted away: their last purchases were 45 to 110 days ago. They are the audience for the win-back test.
+  const lapsedIn = category === "Kirana" || category === "Salon";
+  for (let i = 0; i < 36; i++) {
+    const firsts = lapsedIn ? FIRST_IN : FIRST;
+    const lasts = lapsedIn ? LAST_IN : LAST;
+    custs.push({
+      refId: `L${String(i + 1).padStart(3, "0")}`,
+      name: `${firsts[Math.floor(rand() * firsts.length)]} ${lasts[Math.floor(rand() * lasts.length)]}`,
+      kind: "lapsed",
+    });
+  }
+
+  // About 7 in 10 customers have agreed to be messaged. Phone numbers are obviously fake (90000 000NN).
+  const consentRand = mulberry32(seedFrom(`${businessId}:consent`));
+  const consentOf = new Map(custs.map((c) => [c.refId, c.kind === "lapsed" ? consentRand() < 0.82 : c.kind !== "inactive" ? consentRand() < 0.78 : consentRand() < 0.4]));
+  await db.insert(customersTable).values(
+    custs.map((c, i) => ({
+      businessId,
+      refId: c.refId,
+      name: c.name,
+      phone: `90000 000${String(i + 1).padStart(2, "0")}`,
+      marketingConsent: consentOf.get(c.refId) === true,
+      consentAt: consentOf.get(c.refId) ? new Date() : null,
+      consentSource: consentOf.get(c.refId) ? "demo: opted in at the counter" : null,
+      demo: true,
+    }))
+  );
 
   // ---- 120 days of sales ----
   const DAYS = 120;
@@ -280,6 +323,17 @@ export async function loadDemoData(businessId: string, category: string): Promis
     }
   }
 
+  for (const c of custs) {
+    if (c.kind !== "lapsed") continue;
+    const visits = 1 + (rand() < 0.5 ? 1 : 0);
+    for (let v = 0; v < visits; v++) {
+      const date = addDays(today, -(45 + Math.floor(rand() * 65)));
+      const p = pack[pickProduct()];
+      const qty = 1 + Math.floor(rand() * 2);
+      salesRows.push({ businessId, saleDate: date, productName: p.name, quantity: qty, unitPrice: p.price, totalAmount: Math.round(qty * p.price * 100) / 100, customerId: c.refId, demo: true });
+    }
+  }
+
   if (category === "Kirana") {
     for (const row of salesRows) {
       if (!/oil/i.test(row.productName)) continue;
@@ -290,7 +344,99 @@ export async function loadDemoData(businessId: string, category: string): Promis
       row.totalAmount = Math.round(row.quantity * price * 100) / 100;
     }
   }
+
+  // Planted dip for the drop detector: a supplier delay left the biggest category short for the last 5 days,
+  // so about 70% of its sales were lost. This week sits well under a normal week, and the category and products are named.
+  const dipCategory = [...pack].sort((a, b) => b.weight - a.weight)[0].category;
+  const dipNames = new Set(pack.filter((p) => p.category === dipCategory).map((p) => p.name));
+  const dipRand = mulberry32(seedFrom(`${businessId}:dip`));
+  const dipFrom = addDays(today, -4);
+  for (let i = salesRows.length - 1; i >= 0; i--) {
+    if (dipNames.has(salesRows[i].productName) && salesRows[i].saleDate >= dipFrom && dipRand() < 0.7) salesRows.splice(i, 1);
+  }
+
+  // Planted example for the Impact page: a 10%-off WhatsApp promo sent 12 days ago.
+  // Roughly 4 in 5 sales of that product in the next 7 days get a second, discounted sale.
+  const promoProduct = pickPromoProduct(pack);
+  const promoSentOn = addDays(today, -12);
+  const promoFrom = addDays(promoSentOn, 1);
+  const promoTo = addDays(promoSentOn, 7);
+  const extra: typeof salesRows = [];
+  for (const row of salesRows) {
+    if (row.productName !== promoProduct.name || row.saleDate < promoFrom || row.saleDate > promoTo) continue;
+    if (rand() < 0.8) {
+      const unitPrice = Math.round(row.unitPrice * 0.9 * 100) / 100;
+      extra.push({ ...row, unitPrice, totalAmount: Math.round(row.quantity * unitPrice * 100) / 100 });
+    }
+  }
+  salesRows.push(...extra);
+
+  // Planted holdout experiment: a win-back offer sent 12 days ago to consenting customers who had not bought for 3+ weeks,
+  // with 30% held back. Lapsed customers have almost no organic purchases, so the comparison is clean.
+  const expProduct = pack.filter((p) => !/oil|rice/i.test(p.name) && p.name !== promoProduct.name && p.price >= 100).sort((a, b) => b.weight - a.weight)[0] ?? promoProduct;
+  const lastBefore = new Map<string, string>();
+  for (const r of salesRows) {
+    if (!r.customerId || r.saleDate >= promoSentOn) continue;
+    const cur = lastBefore.get(r.customerId);
+    if (!cur || r.saleDate > cur) lastBefore.set(r.customerId, r.saleDate);
+  }
+  const gap = (d: string) => Math.round((Date.parse(`${promoSentOn}T00:00:00Z`) - Date.parse(`${d}T00:00:00Z`)) / 86400000);
+  const lapsedRefs = custs.filter((c) => consentOf.get(c.refId) && !!lastBefore.get(c.refId) && gap(lastBefore.get(c.refId) as string) >= 21).map((c) => c.refId);
+  const split = assignHoldout(lapsedRefs, 30, `${businessId}:demo-experiment`);
+  const expRand = mulberry32(seedFrom(`${businessId}:experiment`));
+  const expFrom = addDays(promoSentOn, 1);
+  const addVisit = (ref: string) => {
+    const date = addDays(expFrom, Math.floor(expRand() * 11));
+    const qty = 1 + Math.floor(expRand() * 2);
+    const unitPrice = Math.round(expProduct.price * 0.9 * 100) / 100;
+    salesRows.push({ businessId, saleDate: date, productName: expProduct.name, quantity: qty, unitPrice, totalAmount: Math.round(qty * unitPrice * 100) / 100, customerId: ref, demo: true });
+  };
+  for (const ref of split.treatment) if (expRand() < 0.6) addVisit(ref);
+  for (const ref of split.holdout) if (expRand() < 0.05) addVisit(ref);
+
   for (let i = 0; i < salesRows.length; i += 500) await db.insert(salesTable).values(salesRows.slice(i, i + 500));
+  const [promoCamp] = await db.insert(marketingCampaigns).values({
+    businessId,
+    type: "whatsapp",
+    title: `${promoProduct.name} 10% off`,
+    content: `${promoProduct.name} is 10% off this week. Reply to this message and we will keep one aside for you.`,
+    inputsJson: JSON.stringify({ product: promoProduct.name, discount: 10, demo: true, source: "demo" }),
+    engine: "builtin",
+    status: "sent",
+    approvedAt: new Date(`${promoSentOn}T12:00:00.000Z`),
+  }).returning({ id: marketingCampaigns.id });
+  const [expCamp] = await db.insert(marketingCampaigns).values({
+    businessId,
+    type: "whatsapp",
+    title: `Win-back: ${expProduct.name} 10% off`,
+    content: `We miss you! ${expProduct.name} is 10% off this week, just for you. Reply and we will keep one aside.`,
+    inputsJson: JSON.stringify({ product: expProduct.name, discount: 10, demo: true, source: "demo", segment: "lapsed customers" }),
+    engine: "builtin",
+    status: "sent",
+    approvedAt: new Date(`${promoSentOn}T12:00:00.000Z`),
+  }).returning({ id: marketingCampaigns.id });
+  const [exp] = await db
+    .insert(promoExperiments)
+    .values({ businessId, campaignId: expCamp.id, title: `Win-back: ${expProduct.name} 10% off`, segment: "Custom: no purchase for 21+ days", productName: expProduct.name, holdoutPct: 30, windowDays: 14, startedOn: promoSentOn, demo: true })
+    .returning({ id: promoExperiments.id });
+  await db.insert(promoAssignments).values([
+    ...split.treatment.map((customerRef) => ({ experimentId: exp.id, businessId, customerRef, grp: "treatment" })),
+    ...split.holdout.map((customerRef) => ({ experimentId: exp.id, businessId, customerRef, grp: "holdout" })),
+  ]);
+
+  // Cash picture sized from this shop's own weekly sales: bills and rent due, a few customers owing money.
+  const since28 = addDays(today, -27);
+  const weekly = salesRows.filter((r) => r.saleDate >= since28).reduce((a, r) => a + r.totalAmount, 0) / 4;
+  const W = Math.max(1000, Math.round(weekly));
+  const r100 = (n: number) => Math.round(n / 100) * 100;
+  await db.update(businesses).set({ openingCash: r100(W * 1.3), openingCashOn: today }).where(eq(businesses.id, businessId));
+  const owing = custs.filter((c) => c.kind === "loyal" || c.kind === "high_value").slice(0, 4);
+  await db.insert(cashItems).values([
+    { businessId, kind: "payable", party: "Wholesaler (staples)", amount: r100(W * 0.9), issuedOn: addDays(today, -6), dueDate: addDays(today, 12), recurrence: "none", note: "Rice, atta and oil", demo: true },
+    { businessId, kind: "payable", party: "Distributor (packaged)", amount: r100(W * 1.1), issuedOn: addDays(today, -3), dueDate: addDays(today, 26), recurrence: "none", note: "Monthly order", demo: true },
+    { businessId, kind: "recurring", party: "Shop rent", amount: r100(W * 0.2), issuedOn: addDays(today, -25), dueDate: addDays(today, 5), recurrence: "monthly", demo: true },
+    ...owing.map((c, i) => ({ businessId, kind: "receivable", party: c.name, amount: r100(W * (0.05 + i * 0.015)), issuedOn: addDays(today, -(10 + i * 3)), dueDate: addDays(today, 3 + i * 5), recurrence: "none", note: "Credit on groceries", demo: true })),
+  ]);
   if (category === "Kirana") {
     const since = addDays(today, -13);
     const qty = new Map<string, number>();
@@ -319,7 +465,7 @@ export async function loadDemoData(businessId: string, category: string): Promis
     isDemo: true,
   });
 
-  return { products: pack.length, sales: salesRows.length, customers: nCust };
+  return { products: pack.length, sales: salesRows.length, customers: custs.length };
 }
 
 export async function clearDemoData(businessId: string): Promise<void> {
@@ -333,6 +479,10 @@ export async function clearDemoData(businessId: string): Promise<void> {
   await db.delete(salesTable).where(and(eq(salesTable.businessId, businessId), eq(salesTable.demo, true)));
   await db.delete(customersTable).where(and(eq(customersTable.businessId, businessId), eq(customersTable.demo, true)));
   await db.delete(uploadedFiles).where(and(eq(uploadedFiles.businessId, businessId), eq(uploadedFiles.isDemo, true)));
+  await db.delete(promoAssignments).where(and(eq(promoAssignments.businessId, businessId), inArray(promoAssignments.experimentId, db.select({ id: promoExperiments.id }).from(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true))))));
+  await db.delete(promoExperiments).where(and(eq(promoExperiments.businessId, businessId), eq(promoExperiments.demo, true)));
+  await db.delete(cashItems).where(and(eq(cashItems.businessId, businessId), eq(cashItems.demo, true)));
+  await db.delete(marketingCampaigns).where(and(eq(marketingCampaigns.businessId, businessId), like(marketingCampaigns.inputsJson, '%"demo":true%')));
 }
 
 export async function hasDemoData(businessId: string): Promise<boolean> {

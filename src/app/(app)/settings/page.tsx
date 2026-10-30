@@ -71,7 +71,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="bc-fade-up mx-auto max-w-2xl space-y-4">
+    <div className="bc-fade-up max-w-3xl space-y-6">
       <PageHeader title="Settings" desc="Your business profile, AI engine status and demo data controls." />
 
       <Card title="Business profile" sub="Used to personalise analytics, forecasts and marketing copy">

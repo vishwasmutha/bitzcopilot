@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff, CheckCheck, Info, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react";
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner, useToast } from "@/components/ui";
 
-type Notif = { id: string; type: string; severity: string; title: string; message: string; read: boolean; createdAt: Date | string };
+type Notif = { id: string; type: string; severity: string; title: string; message: string; read: boolean; createdAt: Date | string; impactRs?: number | null };
 
 const SEV_ICON: Record<string, { icon: typeof Info; cls: string }> = {
   critical: { icon: BellOff, cls: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400" },
@@ -53,7 +53,7 @@ export default function NotificationsPage() {
   const list = notifs?.filter((n) => (filter === "all" ? true : !n.read)) ?? [];
 
   return (
-    <div className="bc-fade-up mx-auto max-w-3xl">
+    <div className="bc-fade-up max-w-4xl">
       <PageHeader
         title="Business Alerts"
         desc="Rule-based alerts generated from your live data: sales drops, stockouts, demand surges and engagement signals."
@@ -70,7 +70,7 @@ export default function NotificationsPage() {
             key={f}
             onClick={() => setFilter(f)}
             className={
-              "rounded-md px-4 py-1.5 text-[13px] font-medium capitalize " +
+              "rounded-md px-4 py-1.5 text-sm font-medium capitalize " +
               (filter === f ? "bg-brand-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800")
             }
           >
@@ -105,13 +105,14 @@ export default function NotificationsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className={"text-[13.5px] " + (n.read ? "font-medium text-slate-600 dark:text-slate-300" : "font-semibold text-slate-900 dark:text-white")}>{n.title}</p>
+                      <p className={"text-sm " + (n.read ? "font-medium text-slate-600 dark:text-slate-300" : "font-semibold text-slate-900 dark:text-white")}>{n.title}</p>
                       <Badge tone={SEV_TONE[n.severity] ?? "info"}>{n.severity}</Badge>
+                      {n.impactRs ? <Badge tone="warning">₹{Math.round(n.impactRs).toLocaleString("en-IN")} at stake</Badge> : null}
                       {!n.read && <span className="h-2 w-2 rounded-full bg-brand-500" />}
                     </div>
-                    <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">{n.message}</p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">{n.message}</p>
                   </div>
-                  <span className="shrink-0 text-[11px] text-slate-400">
+                  <span className="shrink-0 text-xs text-slate-400">
                     {new Date(n.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                   </span>
                 </button>

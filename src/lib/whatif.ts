@@ -133,7 +133,12 @@ export async function simulateWhatIf(businessId: string, question: string, lang:
     loadProducts(businessId),
     loadSales(businessId, addDays(today, -90), today),
   ]);
-  const prods: Prod[] = products.map((p) => ({ name: p.name, stock: p.stockQty, cost: p.unitCost, price: p.sellingPrice }));
+  // Best sellers first, so a loose word like "oil" resolves to the product that actually sells.
+  const unitsSold = new Map<string, number>();
+  for (const s of sales) unitsSold.set(s.productName, (unitsSold.get(s.productName) ?? 0) + s.quantity);
+  const prods: Prod[] = products
+    .map((p) => ({ name: p.name, stock: p.stockQty, cost: p.unitCost, price: p.sellingPrice }))
+    .sort((a, b) => (unitsSold.get(b.name) ?? 0) - (unitsSold.get(a.name) ?? 0));
   const days = new Set(sales.map((s) => s.saleDate)).size;
   if (days < 14) {
     return {

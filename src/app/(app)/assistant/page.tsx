@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, MessageSquareText, PenSquare, Plus, Send, Sparkles, Trash2, User } from "lucide-react";
+import { Bot, ChevronDown, MessageSquareText, PenSquare, Plus, Send, Sparkles, Trash2, User, Wrench } from "lucide-react";
 import { Badge, Button, Card, Spinner, useToast } from "@/components/ui";
 import { Md } from "@/components/ui";
 import { BarsChart, DonutChart, TrendArea } from "@/components/charts";
@@ -12,7 +12,44 @@ type Msg = {
   content: string;
   engine?: string | null;
   charts?: { kind: "bars" | "line" | "pie"; title: string; data: { label: string; value: number }[] }[] | null;
+  tools?: ToolCall[] | null;
 };
+
+type ToolCall = { tool: string; args: Record<string, unknown>; summary: string; figures: { label: string; value: string }[] };
+
+/** The tools that ran and the exact figures they returned, so every claim can be checked. */
+function FiguresUsed({ tools }: { tools: ToolCall[] }) {
+  const [open, setOpen] = useState(false);
+  if (!tools.length) return null;
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 text-left dark:border-slate-700 dark:bg-slate-800/50">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-brand-700 dark:text-brand-300" aria-expanded={open}>
+        <Wrench className="h-3.5 w-3.5" />
+        Figures used · {tools.map((t) => t.tool).join(", ")}
+        <ChevronDown className={"ml-auto h-3.5 w-3.5 transition-transform " + (open ? "rotate-180" : "")} />
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-slate-200 px-3 py-2.5 dark:border-slate-700">
+          {tools.map((t, i) => (
+            <div key={i}>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                <span className="font-mono">{t.tool}({Object.entries(t.args).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ")})</span> · {t.summary}
+              </p>
+              <dl className="mt-1 grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-3 gap-y-0.5 text-xs">
+                {t.figures.map((f, j) => (
+                  <div key={j} className="contents">
+                    <dt className="text-slate-500 dark:text-slate-400">{f.label}</dt>
+                    <dd className="tabular-nums text-slate-800 dark:text-slate-100">{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Conv = { id: string; title: string; createdAt: Date | string };
 
@@ -25,6 +62,8 @@ const SUGGESTIONS = [
   "Which customers have stopped purchasing?",
   "What marketing strategy should I use this week?",
   "Predict my revenue for next week",
+  "Will I run short of cash in the next month?",
+  "Did my last promotion actually work?",
 ];
 
 function ChartView({ chart }: { chart: NonNullable<Msg["charts"]>[number] }) {
@@ -63,7 +102,7 @@ export default function AssistantPage() {
     setMsgs([]);
     const r = await fetch(`/api/ai/conversations/${id}`);
     const j = await r.json();
-    if (r.ok) setMsgs(j.messages ?? []);
+    if (r.ok) setMsgs((j.messages ?? []).map((m: Msg & { meta?: { charts?: Msg["charts"]; tools?: ToolCall[] } | null }) => ({ ...m, charts: m.meta?.charts ?? null, tools: m.meta?.tools ?? null })));
   };
 
   const newConv = () => {
@@ -95,7 +134,7 @@ export default function AssistantPage() {
         setMsgs((m) => [...m, { role: "assistant", content: `Sorry — ${j.error ?? "something went wrong"}. Please try again.` }]);
         return;
       }
-      setMsgs((m) => [...m, { role: "assistant", content: j.reply, engine: j.engine, charts: j.charts }]);
+      setMsgs((m) => [...m, { role: "assistant", content: j.reply, engine: j.engine, charts: j.charts, tools: j.tools }]);
       setActive(j.conversationId);
       fetch("/api/ai/conversations").then((rr) => rr.json()).then((jj) => setConvs(jj.conversations ?? [])).catch(() => {});
     } finally {
@@ -104,7 +143,7 @@ export default function AssistantPage() {
   };
 
   return (
-    <div className="bc-fade-up grid gap-4 lg:grid-cols-4" style={{ height: "calc(100vh - 150px)" }}>
+    <div className="bc-fade-up grid gap-6 lg:grid-cols-4" style={{ height: "calc(100vh - 200px)", minHeight: 560 }}>
       {/* Conversation list */}
       <Card className="hidden max-h-full flex-col lg:flex" title="Conversations" action={
         <button onClick={newConv} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10">
@@ -116,10 +155,10 @@ export default function AssistantPage() {
           {convs.map((c) => (
             <div key={c.id} className={"group flex items-center gap-2 px-4 py-3 " + (active === c.id ? "bg-brand-50/60 dark:bg-brand-500/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/50")}>
               <button onClick={() => openConv(c.id)} className="min-w-0 flex-1 text-left">
-                <p className="truncate text-[13px] font-medium">{c.title}</p>
-                <p className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</p>
+                <p className="truncate text-sm font-medium">{c.title}</p>
+                <p className="text-xs text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</p>
               </button>
-              <button onClick={() => deleteConv(c.id)} className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100" title="Delete">
+              <button onClick={() => deleteConv(c.id)} className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100" title="Delete conversation" aria-label={`Delete conversation ${c.title}`}>
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -128,14 +167,14 @@ export default function AssistantPage() {
       </Card>
 
       {/* Chat */}
-      <Card className="flex max-h-full flex-col overflow-hidden" pad={false}>
+      <Card className="flex max-h-full flex-col overflow-hidden lg:col-span-3" pad={false}>
         <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-accent-600 text-white">
             <Bot className="h-4.5 w-4.5" />
           </div>
           <div>
             <p className="font-display text-sm font-semibold">BizCopilot Assistant</p>
-            <p className="text-[11px] text-slate-400">Answers are computed from your business data — never invented.</p>
+            <p className="text-xs text-slate-400">Answers are computed from your business data — never invented.</p>
           </div>
         </div>
 
@@ -156,7 +195,7 @@ export default function AssistantPage() {
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-left text-[12.5px] text-slate-600 transition-colors hover:border-brand-400 hover:bg-brand-50/50 hover:text-brand-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-brand-600 dark:hover:bg-brand-500/10"
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-left text-xs text-slate-600 transition-colors hover:border-brand-400 hover:bg-brand-50/50 hover:text-brand-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-brand-600 dark:hover:bg-brand-500/10"
                   >
                     {s}
                   </button>
@@ -182,7 +221,7 @@ export default function AssistantPage() {
                   }
                 >
                   {m.role === "user" ? (
-                    <p className="text-[13.5px] leading-relaxed">{m.content}</p>
+                    <p className="text-sm leading-relaxed">{m.content}</p>
                   ) : (
                     <>
                       <Md text={m.content} />
@@ -190,9 +229,10 @@ export default function AssistantPage() {
                     </>
                   )}
                 </div>
+                {m.role === "assistant" && m.tools && m.tools.length > 0 && <FiguresUsed tools={m.tools} />}
                 {m.role === "assistant" && m.engine && (
                   <div className="mt-1 flex items-center gap-1.5 px-1">
-                    <Badge tone="accent" className="!px-1.5 !py-0 text-[10px]">{m.engine}</Badge>
+                    <Badge tone="accent" className="!px-1.5 !py-0 text-xs">{m.engine}</Badge>
                   </div>
                 )}
               </div>
@@ -239,7 +279,7 @@ export default function AssistantPage() {
               <Send className="h-4 w-4" />
             </Button>
           </div>
-          <p className="mt-1.5 flex items-center gap-1 px-1 text-[10.5px] text-slate-400">
+          <p className="mt-1.5 flex items-center gap-1 px-1 text-xs text-slate-400">
             <MessageSquareText className="h-3 w-3" /> Business-scoped · rate limited to 20 questions/min
           </p>
         </div>

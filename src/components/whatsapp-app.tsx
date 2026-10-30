@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Mic, Phone, Send, Square } from "lucide-react";
+import { Check, DoorOpen, Mic, Send, Square, Volume2 } from "lucide-react";
 import { authFetch } from "@/lib/client-auth";
 import { LANG_OPTIONS, type Lang } from "@/lib/utils";
 import { MathReceipt, type ReceiptData } from "./receipt";
@@ -21,9 +21,9 @@ type Msg = {
 };
 
 const CHIPS: Record<Lang, string[]> = {
-  kn: ["ಎಣ್ಣೆ ₹5 ಹೆಚ್ಚಿಸಿದರೆ?", "ಸಪ್ಲೈಯರ್ ಒಂದು ವಾರ ತಡವಾದರೆ?", "ಅಕ್ಕಿ ಎಷ್ಟು ದಿನ ಸಾಕು?"],
-  hi: ["अगर तेल ₹5 बढ़ा दूं?", "सप्लायर एक हफ्ता लेट हो तो?", "चावल कितने दिन चलेगा?"],
-  en: ["What if I raise oil by ₹5?", "What if my supplier delays a week?", "How many days of rice are left?"],
+  kn: ["ಎಣ್ಣೆ ₹5 ಹೆಚ್ಚಿಸಿದರೆ?", "ಸಪ್ಲೈಯರ್ ಒಂದು ವಾರ ತಡವಾದರೆ?", "ಅಕ್ಕಿ ಎಷ್ಟು ದಿನ ಸಾಕು?", "ನಗದು ಕಡಿಮೆಯಾಗುತ್ತದೆಯೇ?"],
+  hi: ["अगर तेल ₹5 बढ़ा दूं?", "सप्लायर एक हफ्ता लेट हो तो?", "चावल कितने दिन चलेगा?", "क्या नकदी कम पड़ेगी?"],
+  en: ["What if I raise oil by ₹5?", "What if my supplier delays a week?", "How many days of rice are left?", "Will I run short of cash?"],
 };
 
 const PLACE: Record<Lang, string> = {
@@ -246,16 +246,26 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
               {shop?.location || "Bengaluru"} · 9:00 AM brief · {shop?.isDemo ? "demo shop" : "your shop"}
             </p>
           </div>
-          <div className="flex rounded-full bg-black/30 p-0.5 text-[11px] font-semibold">
-            {LANG_OPTIONS.map((l) => (
-              <button
-                key={l.id}
-                onClick={() => switchLang(l.id)}
-                className={"rounded-full px-2 py-1 " + (lang === l.id ? "bg-[#25D366] text-[#0b141a]" : "text-white/70")}
-              >
-                {l.label}
-              </button>
-            ))}
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/"
+              className="rounded-full p-2 text-white/75 hover:bg-white/10 hover:text-white"
+              aria-label="Exit to home without signing out"
+              title="Exit to home without signing out"
+            >
+              <DoorOpen className="h-4 w-4" />
+            </Link>
+            <div className="flex rounded-full bg-black/30 p-0.5 text-[11px] font-semibold">
+              {LANG_OPTIONS.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => switchLang(l.id)}
+                  className={"rounded-full px-2 py-1 " + (lang === l.id ? "bg-[#25D366] text-[#0b141a]" : "text-white/70")}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
         </header>
 
@@ -284,7 +294,7 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
                         className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10"
                         aria-label="Play voice note"
                       >
-                        <Phone className="h-3.5 w-3.5" />
+                        <Volume2 className="h-3.5 w-3.5" />
                       </button>
                       <div className="flex h-6 items-end gap-0.5">
                         {Array.from({ length: 16 }).map((_, i) => (
@@ -357,7 +367,7 @@ export function WhatsAppApp({ initialLang = "kn" }: { initialLang?: Lang }) {
               placeholder={listening ? (lang === "kn" ? `ಕೇಳುತ್ತಿದ್ದೇನೆ… ${seconds}s` : lang === "hi" ? `सुन रहा हूँ… ${seconds}s` : `Listening… ${seconds}s`) : PLACE[lang]}
               className="max-h-24 min-h-[44px] flex-1 resize-none rounded-2xl bg-[#2a3942] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35"
             />
-            <button onClick={() => send()} disabled={busy || !text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-[#0b141a] disabled:opacity-40">
+            <button onClick={() => send()} disabled={busy || !text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-[#0b141a] disabled:opacity-40" aria-label="Send message">
               <Send className="h-4 w-4" />
             </button>
           </div>

@@ -4,7 +4,8 @@ import { businesses, products as productsTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { loadSales } from "./analytics";
 import type { Receipt } from "./trust";
-import { addDays, fmtCurrency, todayISO } from "./utils";
+import { addDays, fmtCurrency, isUntracked, todayISO } from "./utils";
+import { reorderPoint, slowMover, stockRisk, type StockRisk } from "./engine-math";
 
 export type Festival = {
   id: string;
@@ -108,18 +109,27 @@ export type PlanLine = {
   cashOut: number;
   funded: boolean;
   reason: string;
+  leadTimeDays: number;
+  safetyStock: number;
+  reorderPoint: number;
+  risk: StockRisk;
+  slow: boolean;
+  cashTrapped: number;
 };
+
+export type SlowMover = { name: string; stock: number; coverDays: number | null; cashTrapped: number };
 
 export async function buildPurchasePlan(businessId: string, includeFestival: boolean) {
   const today = todayISO();
   const [bizRows, products, sales] = await Promise.all([
     db.select().from(businesses).where(eq(businesses.id, businessId)).limit(1),
     db.select().from(productsTable).where(eq(productsTable.businessId, businessId)),
-    loadSales(businessId, addDays(today, -13), today),
+    loadSales(businessId, addDays(today, -27), today),
   ]);
   const biz = bizRows[0];
   const festivals = activeFestivals(today);
-  const dates = new Set(sales.map((s) => s.saleDate));
+  const since14 = addDays(today, -13);
+  const dates = new Set(sales.filter((s) => s.saleDate >= since14).map((s) => s.saleDate));
   if (dates.size < 7) {
     return {
       status: "insufficient" as const,
@@ -131,6 +141,8 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
         caveat: "No order quantity was invented.",
       } satisfies Receipt,
       lines: [] as PlanLine[],
+      slowMovers: [] as SlowMover[],
+      cashTrapped: 0,
       festivals,
       budget: biz?.cashBudget ?? null,
       upiId: biz?.upiId ?? null,
@@ -142,7 +154,18 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
   }
 
   const qty = new Map<string, number>();
-  for (const s of sales) qty.set(s.productName, (qty.get(s.productName) ?? 0) + s.quantity);
+  // Units per day over the last 28 days, zero-filled, for the reorder point
+  const dayIndex = new Map<string, number>();
+  for (let i = 0; i < 28; i++) dayIndex.set(addDays(today, -27 + i), i);
+  const series = new Map<string, number[]>();
+  for (const s of sales) {
+    if (s.saleDate >= since14) qty.set(s.productName, (qty.get(s.productName) ?? 0) + s.quantity);
+    const idx = dayIndex.get(s.saleDate);
+    if (idx == null) continue;
+    const arr = series.get(s.productName) ?? new Array(28).fill(0);
+    arr[idx] += s.quantity;
+    series.set(s.productName, arr);
+  }
   const strongest = festivals.reduce<Festival | null>((a, f) => (!a || f.lift > a.lift ? f : a), null);
 
   const lines: PlanLine[] = products.map((p) => {
@@ -152,8 +175,13 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
     const gstRate = gstFor(p.name, p.category, p.gstRate);
     const fest = includeFestival && strongest && strongest.appliesTo.includes(p.category ?? "") ? strongest : null;
     const lift = fest ? fest.lift : 1;
-    const target = Math.ceil(daily * 14 * lift);
-    const measuredNeed = Math.max(0, Math.ceil(daily * 14) - p.stockQty);
+    const rp = reorderPoint(series.get(p.name) ?? new Array(28).fill(0), p.leadTimeDays);
+    const untracked = isUntracked(p.stockQty, p.minStock);
+    const risk = untracked ? "ok" : stockRisk(p.stockQty, rp);
+    const slow = untracked ? { slow: false, coverDays: null, cashTrapped: 0 } : slowMover(p.stockQty, rp.dailyMean, p.unitCost);
+    const safety = Math.ceil(rp.safetyStock);
+    const target = Math.ceil(daily * 14 * lift) + (daily > 0 ? safety : 0);
+    const measuredNeed = Math.max(0, Math.ceil(daily * 14) + (daily > 0 ? safety : 0) - p.stockQty);
     const rawNeed = Math.max(0, target - p.stockQty);
     const orderQty = rawNeed === 0 ? 0 : Math.max(moq, Math.ceil(rawNeed / moq) * moq);
     const exGst = Math.round(orderQty * p.unitCost);
@@ -178,10 +206,20 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
       funded: false,
       reason:
         orderQty === 0
-          ? "14-day measured demand is already covered."
+          ? slow.slow
+            ? `Slow mover: ${slow.coverDays == null ? "nothing sold in 28 days" : `${Math.round(slow.coverDays)} days of cover`}. ${fmtCurrency(slow.cashTrapped)} of cash is sitting on the shelf, so do not reorder.`
+            : "14-day measured demand is already covered."
           : fest
             ? `Measured need ${measuredNeed}. Festival prior ×${fest.lift} (${fest.name}) is labeled and not from your history. Rounded up to supplier MOQ ${moq}.`
-            : `Cover 14 days of measured demand (${daily.toFixed(1)}/day). Rounded up to supplier MOQ ${moq}.`,
+            : risk === "stockout_before_delivery"
+              ? `Will run out before a ${rp.leadTimeDays}-day delivery lands (${rp.leadDemand.toFixed(0)} units needed, ${p.stockQty} on hand). Cover 14 days plus ${safety} safety stock, rounded up to MOQ ${moq}.`
+              : `Cover 14 days of measured demand (${daily.toFixed(1)}/day) plus ${safety} safety stock. Rounded up to supplier MOQ ${moq}.`,
+      leadTimeDays: rp.leadTimeDays,
+      safetyStock: safety,
+      reorderPoint: Math.ceil(rp.rop),
+      risk,
+      slow: slow.slow,
+      cashTrapped: Math.round(slow.cashTrapped),
     };
   });
 
@@ -197,6 +235,11 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
   }
   const funded = lines.filter((l) => l.funded && l.orderQty > 0);
   const deferred = lines.filter((l) => !l.funded && l.orderQty > 0);
+  const slowMovers: SlowMover[] = lines
+    .filter((l) => l.slow && l.cashTrapped > 0)
+    .map((l) => ({ name: l.name, stock: l.stock, coverDays: l.daysCover, cashTrapped: l.cashTrapped }))
+    .sort((a, b) => b.cashTrapped - a.cashTrapped);
+  const cashTrapped = slowMovers.reduce((a, l) => a + l.cashTrapped, 0);
   const gstOnFunded = funded.reduce((a, l) => a + l.gst, 0);
   const deferredCash = deferred.reduce((a, l) => a + l.cashOut, 0);
 
@@ -205,7 +248,8 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
     status: "computed",
     headline: budget == null ? "No cash budget set — nothing was trimmed" : `${fmtCurrency(spent)} of ${fmtCurrency(budget)} weekly cash used`,
     steps: [
-      { label: "Demand", detail: "Daily rate = units sold in the last 14 days ÷ 14. Target = 14 × daily rate." },
+      { label: "Demand", detail: "Daily rate = units sold in the last 14 days ÷ 14. Target = 14 × daily rate + safety stock." },
+      { label: "Reorder point", detail: "Reorder point = average daily demand x lead time + safety stock. Safety stock = 1.65 x daily standard deviation x square root of lead time, which aims for about a 95% in-stock rate. Demand is learned from the last 28 days. A line is marked 'reorder now' at or under that point and 'stockout before delivery' when stock cannot last the lead time." },
       { label: "MOQ", detail: "Order quantity is rounded up to the supplier minimum. That extra stock is visible, not hidden in the total." },
       { label: "GST", detail: `Cash out includes GST. ${biz?.gstin ? `GSTIN ${biz.gstin} on file — GST on funded lines (${fmtCurrency(gstOnFunded)}) is input tax credit, but the UPI debit is still the GST-inclusive amount today.` : "No GSTIN saved — GST is treated as a cash cost, not credit."}` },
       { label: "Festival", detail: includeFestival && strongest ? `${strongest.name} prior ×${strongest.lift} on ${strongest.appliesTo.join(", ")}. ${strongest.note}` : "Festival prior is off. Only measured demand is used." },
@@ -218,6 +262,8 @@ export async function buildPurchasePlan(businessId: string, includeFestival: boo
     status: "computed" as const,
     receipt,
     lines,
+    slowMovers,
+    cashTrapped,
     festivals,
     budget,
     upiId: biz?.upiId ?? null,
